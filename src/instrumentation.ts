@@ -7,8 +7,16 @@ export async function register() {
       console.error("[owl] seedFirstUser failed:", err);
     }
     try {
-      const { startTelegramBot } = await import("@/services/telegram");
-      startTelegramBot();
+      const webhookUrl = process.env.TELEGRAM_WEBHOOK_URL;
+      if (webhookUrl) {
+        // Production: register webhook with Telegram, bot responds via HTTP
+        const { registerWebhook } = await import("@/services/telegram");
+        await registerWebhook(webhookUrl);
+      } else {
+        // Development: long-poll from this process
+        const { startTelegramBot } = await import("@/services/telegram");
+        startTelegramBot();
+      }
     } catch (err) {
       console.error("[owl] Telegram bot failed to start:", err);
     }

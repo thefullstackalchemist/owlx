@@ -131,6 +131,19 @@ export async function streamToTelegram(
   return accumulated;
 }
 
+/** Register a webhook URL with Telegram (call once on server start in prod) */
+export async function registerWebhook(webhookUrl: string): Promise<void> {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  if (!token) return;
+  const res  = await fetch(`https://api.telegram.org/bot${token}/setWebhook?url=${encodeURIComponent(webhookUrl)}`);
+  const data = await res.json() as { ok: boolean; description?: string };
+  if (data.ok) {
+    console.log(`[telegram] Webhook registered → ${webhookUrl}`);
+  } else {
+    console.error("[telegram] Webhook registration failed:", data.description);
+  }
+}
+
 /** Push a notification to your configured Telegram chat */
 export async function notify(text: string): Promise<void> {
   const chatId = process.env.TELEGRAM_CHAT_ID;
