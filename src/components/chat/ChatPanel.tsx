@@ -222,7 +222,10 @@ export default function ChatPanel() {
     let fullResponse = "";
 
     try {
-      const history = messages.slice(-10).map((m) => ({ role: m.role, content: m.content }));
+      const history = messages
+        .filter((m) => m.source !== "telegram")
+        .slice(-10)
+        .map((m) => ({ role: m.role, content: m.content }));
       const res = await fetch("/api/chat", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: content, history }),
