@@ -1,26 +1,107 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --color-brand:        #3b82f6;
+  --color-brand-light:  #eff6ff;
+  --color-income:       #16a34a;
+  --color-expense:      #dc2626;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* ─── Base ────────────────────────────────────────────────────────────────── */
+
+button, [role="button"], a, select, label[for] {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: #f0f4f8;
+  background-image:
+    radial-gradient(at 10% 10%, rgba(59, 130, 246, 0.07) 0px, transparent 55%),
+    radial-gradient(at 90% 85%, rgba(99, 102, 241, 0.05) 0px, transparent 55%),
+    radial-gradient(at 55% 5%,  rgba(16, 185, 129, 0.04) 0px, transparent 50%);
+  background-attachment: fixed;
+  color: #1e293b;
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
+
+/* ─── Glass system ────────────────────────────────────────────────────────── */
+
+.glass {
+  background: rgba(255, 255, 255, 0.68);
+  backdrop-filter: blur(20px) saturate(170%);
+  -webkit-backdrop-filter: blur(20px) saturate(170%);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  box-shadow: 0 2px 16px rgba(30, 41, 59, 0.06);
+}
+
+.glass-strong {
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(32px) saturate(190%);
+  -webkit-backdrop-filter: blur(32px) saturate(190%);
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  box-shadow: 0 4px 24px rgba(30, 41, 59, 0.08);
+}
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.62);
+  backdrop-filter: blur(14px) saturate(150%);
+  -webkit-backdrop-filter: blur(14px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 0 1px 8px rgba(30, 41, 59, 0.05);
+}
+
+/* ─── Scrollbars ──────────────────────────────────────────────────────────── */
+
+::-webkit-scrollbar        { width: 4px; height: 4px; }
+::-webkit-scrollbar-track  { background: transparent; }
+::-webkit-scrollbar-thumb  { background: rgba(30,41,59,0.12); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(30,41,59,0.22); }
+
+/* ─── Animations ──────────────────────────────────────────────────────────── */
+
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0);   }
+}
+
+@keyframes blink {
+  0%, 80%, 100% { opacity: 0.2; transform: scale(0.8); }
+  40%           { opacity: 1;   transform: scale(1);   }
+}
+
+.animate-fade-in-up {
+  animation: fade-in-up 0.22s ease-out both;
+}
+
+.dot-1 { animation: blink 1.2s ease-in-out infinite 0s;   }
+.dot-2 { animation: blink 1.2s ease-in-out infinite 0.2s; }
+.dot-3 { animation: blink 1.2s ease-in-out infinite 0.4s; }
+
+/* ─── Dark glass (login page) ─────────────────────────────────────────────── */
+
+.input-dark {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.9);
+  transition: background 0.2s, border-color 0.2s, box-shadow 0.2s;
+}
+.input-dark::placeholder {
+  color: rgba(255, 255, 255, 0.18);
+}
+.input-dark:focus {
+  background: rgba(255, 255, 255, 0.09);
+  border-color: rgba(167, 139, 250, 0.60);
+  box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.15);
+  outline: none;
+}
+
+/* ─── Utilities ───────────────────────────────────────────────────────────── */
+
+.tabular { font-variant-numeric: tabular-nums; }

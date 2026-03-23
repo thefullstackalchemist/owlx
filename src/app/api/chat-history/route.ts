@@ -1,0 +1,21 @@
+import { NextRequest, NextResponse } from "next/server";
+import { connectDB } from "@/lib/mongodb";
+import { ChatMessage } from "@/models/ChatMessage";
+
+/** GET — fetch last 30 messages (oldest first for display) */
+export async function GET() {
+  await connectDB();
+  const messages = await ChatMessage.find()
+    .sort({ createdAt: -1 })
+    .limit(30)
+    .lean();
+  return NextResponse.json(messages.reverse());
+}
+
+/** POST — save a message */
+export async function POST(req: NextRequest) {
+  await connectDB();
+  const { role, content } = await req.json() as { role: "user" | "assistant"; content: string };
+  const msg = await ChatMessage.create({ role, content });
+  return NextResponse.json(msg, { status: 201 });
+}
