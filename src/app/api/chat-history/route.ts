@@ -9,7 +9,9 @@ export async function GET() {
     .sort({ createdAt: -1 })
     .limit(30)
     .lean();
-  return NextResponse.json(messages.reverse());
+  return NextResponse.json(
+    messages.reverse().map((m) => ({ _id: m._id, role: m.role, content: m.content, source: m.source ?? "web" }))
+  );
 }
 
 /** POST — save a message */

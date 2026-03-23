@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, KeyboardEvent } from "react";
-import { Send, Sparkles, Database, Receipt, CheckCircle2 } from "lucide-react";
+import { Send, Sparkles, Database, Receipt, CheckCircle2, MessageCircle } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { cn } from "@/utils/cn";
@@ -19,6 +19,7 @@ interface Message {
   id:          string;
   role:        "user" | "assistant";
   content:     string;
+  source?:     "web" | "telegram";
   actionInfo?: ActionInfo;
   pendingTxn?: NewTransactionData;   // prefilled data from AI
   txnSaved?:   boolean;              // true once user saved it
@@ -88,6 +89,15 @@ function TransactionWidget({
   );
 }
 
+function TelegramBadge() {
+  return (
+    <div className="flex items-center gap-1 self-start mb-1">
+      <MessageCircle size={9} className="text-sky-400" />
+      <span className="text-[9px] font-medium tracking-wide text-sky-400 uppercase">Telegram</span>
+    </div>
+  );
+}
+
 function ChatMessage({
   message,
   onOpenTxn,
@@ -95,17 +105,23 @@ function ChatMessage({
   message:    Message;
   onOpenTxn:  (id: string) => void;
 }) {
-  const isUser = message.role === "user";
+  const isUser     = message.role === "user";
+  const isTelegram = message.source === "telegram";
+
   return (
     <div className={cn("flex flex-col animate-fade-in-up", isUser ? "items-end" : "items-start")}>
+      {!isUser && isTelegram && <TelegramBadge />}
       {!isUser && message.actionInfo && <ActionChip info={message.actionInfo} />}
       <div className={cn("flex", isUser ? "justify-end" : "justify-start w-full")}>
-        {!isUser && <span className="text-sm mr-1.5 mt-0.5 shrink-0">🦉</span>}
+        {!isUser && <span className="text-sm mr-1.5 mt-0.5 shrink-0">{isTelegram ? "✈️" : "🦉"}</span>}
         <div className={cn(
           "max-w-[78%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed",
-          isUser
-            ? "bg-blue-500 text-white rounded-br-sm shadow-sm"
-            : "glass-card text-slate-700 rounded-bl-sm"
+          // Web — user: indigo solid; bot: amber-tinted with left accent border
+          isUser && !isTelegram  && "bg-indigo-600 text-white rounded-br-sm shadow-sm",
+          !isUser && !isTelegram && "bg-amber-50 border-l-4 border-amber-400 border-y border-r border-y-amber-200 border-r-amber-200 text-slate-800 rounded-bl-sm",
+          // Telegram — user: teal solid; bot: teal-tinted with left accent border
+          isUser && isTelegram   && "bg-teal-600 text-white rounded-br-sm shadow-sm",
+          !isUser && isTelegram  && "bg-teal-50 border-l-4 border-teal-400 border-y border-r border-y-teal-200 border-r-teal-200 text-slate-800 rounded-bl-sm",
         )}>
           {message.content === "" ? <TypingDots /> : isUser ? message.content : (
             <ReactMarkdown
@@ -170,8 +186,8 @@ export default function ChatPanel() {
   useEffect(() => {
     fetch("/api/chat-history")
       .then((r) => r.json())
-      .then((data: { _id: string; role: "user" | "assistant"; content: string }[]) => {
-        setMessages(data.map((m) => ({ id: m._id, role: m.role, content: m.content })));
+      .then((data: { _id: string; role: "user" | "assistant"; content: string; source?: "web" | "telegram" }[]) => {
+        setMessages(data.map((m) => ({ id: m._id, role: m.role, content: m.content, source: m.source ?? "web" })));
         setHistoryLoaded(true);
       })
       .catch(() => setHistoryLoaded(true));
@@ -379,7 +395,7 @@ export default function ChatPanel() {
               className={cn(
                 "flex items-center justify-center w-7 h-7 rounded-xl transition-all duration-150",
                 input.trim() && !isStreaming
-                  ? "bg-blue-500 text-white hover:bg-blue-600 shadow-sm"
+                  ? "bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm"
                   : "bg-slate-100 text-slate-300"
               )}
             >

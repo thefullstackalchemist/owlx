@@ -18,7 +18,12 @@ const FREQUENCIES: { value: Frequency; label: string }[] = [
   { value: "yearly",  label: "Yearly"  },
 ];
 
-const today = new Date().toISOString().split("T")[0];
+function localDateTimeDefault() {
+  const now = new Date();
+  now.setSeconds(0, 0);
+  // datetime-local format: YYYY-MM-DDTHH:MM
+  return now.toISOString().slice(0, 16);
+}
 
 export default function NewRecurringModal({ onClose, onSave }: Props) {
   const [amount,      setAmount]      = useState("");
@@ -27,7 +32,7 @@ export default function NewRecurringModal({ onClose, onSave }: Props) {
   const [description, setDescription] = useState("");
   const [platform,    setPlatform]    = useState("");
   const [frequency,   setFrequency]   = useState<Frequency>("monthly");
-  const [nextDue,     setNextDue]     = useState(today);
+  const [nextDue,     setNextDue]     = useState(localDateTimeDefault);
   const [saving,      setSaving]      = useState(false);
   const [error,       setError]       = useState("");
 
@@ -58,7 +63,7 @@ export default function NewRecurringModal({ onClose, onSave }: Props) {
           description: description.trim(),
           platform:    platform.trim() || undefined,
           frequency,
-          nextDue,
+          nextDue: new Date(nextDue).toISOString(),
         }),
       });
       if (!res.ok) throw new Error("Failed");
@@ -81,10 +86,7 @@ export default function NewRecurringModal({ onClose, onSave }: Props) {
             <h2 className="text-base font-semibold text-slate-800">New Recurring</h2>
             <p className="text-[11px] text-slate-400 mt-0.5">Auto-tracked repeating expense or income</p>
           </div>
-          <button
-            onClick={onClose}
-            className="flex items-center justify-center w-7 h-7 rounded-full hover:bg-black/[0.06] text-slate-400 transition-colors"
-          >
+          <button onClick={onClose} className="flex items-center justify-center w-7 h-7 rounded-full hover:bg-black/[0.06] text-slate-400 transition-colors">
             <X size={14} />
           </button>
         </div>
@@ -92,9 +94,7 @@ export default function NewRecurringModal({ onClose, onSave }: Props) {
         <div className="flex flex-col gap-4">
           {/* Amount */}
           <div>
-            <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-1.5">
-              Amount
-            </label>
+            <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-1.5">Amount</label>
             <div className="flex items-center gap-2 rounded-xl border border-black/[0.08] bg-white/80 px-3 py-2.5 focus-within:border-blue-300 transition-colors">
               <span className="text-sm font-medium text-slate-400">₹</span>
               <input
@@ -110,9 +110,7 @@ export default function NewRecurringModal({ onClose, onSave }: Props) {
 
           {/* Type */}
           <div>
-            <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-1.5">
-              Type
-            </label>
+            <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-1.5">Type</label>
             <div className="flex rounded-xl border border-black/[0.08] bg-white/60 overflow-hidden">
               {(["expense", "income", "transfer"] as const).map((t) => (
                 <button
@@ -126,36 +124,28 @@ export default function NewRecurringModal({ onClose, onSave }: Props) {
                       :                   "bg-slate-600 text-white shadow-sm"
                       : "text-slate-500 hover:bg-black/[0.04]"
                   )}
-                >
-                  {t}
-                </button>
+                >{t}</button>
               ))}
             </div>
           </div>
 
           {/* Category */}
           <div>
-            <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-1.5">
-              Category
-            </label>
+            <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-1.5">Category</label>
             <select
               value={category}
               onChange={(e) => setCategory(e.target.value)}
               className="w-full rounded-xl border border-black/[0.08] bg-white/80 px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-blue-300 transition-colors"
             >
               {TRANSACTION_CATEGORIES.map((cat) => (
-                <option key={cat} value={cat}>
-                  {CATEGORY_META[cat]?.emoji} {cat}
-                </option>
+                <option key={cat} value={cat}>{CATEGORY_META[cat]?.emoji} {cat}</option>
               ))}
             </select>
           </div>
 
           {/* Description */}
           <div>
-            <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-1.5">
-              Description
-            </label>
+            <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-1.5">Description</label>
             <input
               value={description}
               onChange={(e) => setDescription(e.target.value)}
@@ -164,12 +154,10 @@ export default function NewRecurringModal({ onClose, onSave }: Props) {
             />
           </div>
 
-          {/* Frequency + First Due */}
+          {/* Frequency + Next billing date */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-1.5">
-                Frequency
-              </label>
+              <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-1.5">Frequency</label>
               <select
                 value={frequency}
                 onChange={(e) => setFrequency(e.target.value as Frequency)}
@@ -182,10 +170,10 @@ export default function NewRecurringModal({ onClose, onSave }: Props) {
             </div>
             <div>
               <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-1.5">
-                First Due
+                Next billing date
               </label>
               <input
-                type="date"
+                type="datetime-local"
                 value={nextDue}
                 onChange={(e) => setNextDue(e.target.value)}
                 className="w-full rounded-xl border border-black/[0.08] bg-white/80 px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-blue-300 transition-colors"
@@ -209,10 +197,7 @@ export default function NewRecurringModal({ onClose, onSave }: Props) {
           {error && <p className="text-xs text-rose-500">{error}</p>}
 
           <div className="flex gap-2 pt-1">
-            <button
-              onClick={onClose}
-              className="flex-1 rounded-xl border border-black/[0.08] py-2.5 text-sm text-slate-500 hover:bg-black/[0.04] transition-colors"
-            >
+            <button onClick={onClose} className="flex-1 rounded-xl border border-black/[0.08] py-2.5 text-sm text-slate-500 hover:bg-black/[0.04] transition-colors">
               Cancel
             </button>
             <button

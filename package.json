@@ -11,12 +11,15 @@
   },
   "dependencies": {
     "@types/bcryptjs": "^2.4.6",
+    "@types/node-telegram-bot-api": "^0.64.14",
     "bcryptjs": "^3.0.3",
     "clsx": "^2.1.1",
     "jose": "^6.2.2",
     "lucide-react": "^0.577.0",
     "mongoose": "^9.3.1",
     "next": "16.2.1",
+    "node-cron": "^4.2.1",
+    "node-telegram-bot-api": "^0.67.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "react-markdown": "^10.1.0",
@@ -26,6 +29,7 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
+    "@types/node-cron": "^3.0.11",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "dotenv-cli": "^8.0.0",

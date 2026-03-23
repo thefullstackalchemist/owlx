@@ -6,6 +6,7 @@ const PUBLIC = [
   "/api/auth/login",
   "/api/auth/check",
   "/api/auth/setup",
+  "/api/telegram/webhook",
 ];
 
 export async function middleware(req: NextRequest) {
