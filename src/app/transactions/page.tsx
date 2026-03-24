@@ -1,22 +1,35 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Plus, TrendingUp, TrendingDown, ArrowUpDown, Trash2 } from "lucide-react";
+import { Plus, TrendingUp, TrendingDown, ArrowUpDown, CreditCard } from "lucide-react";
 import { cn } from "@/utils/cn";
 import { CATEGORY_META } from "@/constants";
 import NewTransactionModal from "@/components/transactions/NewTransactionModal";
 import NewRecurringModal from "@/components/transactions/NewRecurringModal";
+import TransactionDetailModal from "@/components/transactions/TransactionDetailModal";
 import TransactionFilters, { FilterState, defaultFilters } from "@/components/transactions/TransactionFilters";
 import type { NewTransactionData } from "@/services/chatService";
 
+interface Account {
+  _id:      string;
+  name:     string;
+  bank:     string;
+  type:     string;
+  lastFour?: string;
+  isCredit: boolean;
+  color:    string;
+}
+
 interface Transaction {
-  _id: string;
-  date: string;
-  amount: number;
-  type: "income" | "expense" | "transfer";
-  category: string;
-  description: string;
-  platform?: string;
+  _id:            string;
+  date:           string;
+  amount:         number;
+  type:           "income" | "expense" | "transfer";
+  category:       string;
+  description:    string;
+  platform?:      string;
+  accountId?:     Account;
+  needsRepayment: boolean;
 }
 
 function formatDate(iso: string) {
@@ -34,7 +47,7 @@ export default function TransactionsPage() {
   const [filters,            setFilters]            = useState<FilterState>(defaultFilters());
   const [showModal,          setShowModal]          = useState(false);
   const [showRecurringModal, setShowRecurringModal] = useState(false);
-  const [selectedId,         setSelectedId]         = useState<string | null>(null);
+  const [detailTxn,          setDetailTxn]          = useState<Transaction | null>(null);
   const [deletingId,         setDeletingId]         = useState<string | null>(null);
 
   const fetchTransactions = useCallback(async () => {
@@ -77,7 +90,7 @@ export default function TransactionsPage() {
   const handleDelete = async (id: string) => {
     setDeletingId(id);
     await fetch(`/api/transactions/${id}`, { method: "DELETE" });
-    setSelectedId(null);
+    setDetailTxn(null);
     setDeletingId(null);
     fetchTransactions();
   };
@@ -134,61 +147,37 @@ export default function TransactionsPage() {
         ) : (
           <div className="flex flex-col gap-1">
             {transactions.map((txn) => {
-              const meta     = CATEGORY_META[txn.category];
-              const selected = selectedId === txn._id;
-              const deleting = deletingId === txn._id;
+              const meta = CATEGORY_META[txn.category];
               return (
-                <div
+                <button
                   key={txn._id}
-                  className={cn(
-                    "rounded-xl glass-card transition-all duration-150 animate-fade-in-up overflow-hidden",
-                    selected ? "shadow-md ring-1 ring-black/[0.06]" : "hover:shadow-sm"
-                  )}
+                  onClick={() => setDetailTxn(txn)}
+                  className="flex items-center gap-4 w-full px-4 py-3 text-left rounded-xl glass-card hover:shadow-md transition-all duration-150 animate-fade-in-up"
                 >
-                  {/* Main row */}
-                  <button
-                    onClick={() => setSelectedId(selected ? null : txn._id)}
-                    className="flex items-center gap-4 w-full px-4 py-3 text-left"
-                  >
-                    <span className="text-lg shrink-0 w-8 text-center">{meta?.emoji ?? "📦"}</span>
-                    <div className="flex-1 min-w-0">
+                  <span className="text-lg shrink-0 w-8 text-center">{meta?.emoji ?? "📦"}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5">
                       <p className="text-sm font-medium text-slate-700 truncate">{txn.description}</p>
-                      <p className="text-[11px] text-slate-400 mt-0.5">
-                        {txn.category}
-                        {txn.platform && <span className="ml-1.5 text-slate-300">· {txn.platform}</span>}
-                      </p>
+                      {txn.needsRepayment && (
+                        <CreditCard size={11} className="text-rose-400 shrink-0" />
+                      )}
                     </div>
-                    <p className="text-xs text-slate-400 shrink-0">{formatDate(txn.date)}</p>
-                    <p className={cn(
-                      "font-mono text-sm font-semibold tabular shrink-0",
-                      txn.type === "income"    ? "text-green-600"
-                      : txn.type === "expense" ? "text-rose-500"
-                      :                          "text-slate-500"
-                    )}>
-                      {formatAmount(txn.amount, txn.type)}
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      {txn.category}
+                      {txn.platform   && <span className="ml-1.5 text-slate-300">· {txn.platform}</span>}
+                      {txn.accountId  && <span className="ml-1.5 text-slate-300">· {txn.accountId.name}</span>}
                     </p>
-                  </button>
-
-                  {/* Expanded actions */}
-                  {selected && (
-                    <div className="flex items-center justify-end gap-2 px-4 py-2 border-t border-black/[0.04] bg-slate-50/60 animate-fade-in-up">
-                      <button
-                        onClick={() => handleDelete(txn._id)}
-                        disabled={deleting}
-                        className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-rose-500 hover:bg-rose-50 border border-rose-100 transition-colors disabled:opacity-50"
-                      >
-                        <Trash2 size={12} />
-                        {deleting ? "Deleting…" : "Delete"}
-                      </button>
-                      <button
-                        onClick={() => setSelectedId(null)}
-                        className="rounded-lg px-3 py-1.5 text-xs text-slate-400 hover:bg-black/[0.04] transition-colors"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  )}
-                </div>
+                  </div>
+                  <p className="text-xs text-slate-400 shrink-0">{formatDate(txn.date)}</p>
+                  <p className={cn(
+                    "font-mono text-sm font-semibold tabular shrink-0",
+                    txn.type === "income"    ? "text-green-600"
+                    : txn.type === "expense" ? "text-rose-500"
+                    :                          "text-slate-500"
+                  )}>
+                    {formatAmount(txn.amount, txn.type)}
+                  </p>
+                </button>
               );
             })}
           </div>
@@ -229,6 +218,14 @@ export default function TransactionsPage() {
         <NewRecurringModal
           onClose={() => setShowRecurringModal(false)}
           onSave={() => {}}
+        />
+      )}
+
+      {detailTxn && (
+        <TransactionDetailModal
+          transaction={detailTxn}
+          onClose={() => setDetailTxn(null)}
+          onDelete={handleDelete}
         />
       )}
     </div>

@@ -57,7 +57,12 @@ export async function queryTransactions(filters: TransactionFilters) {
     query.type = filters.type;
   }
 
-  const txns = await Transaction.find(query).sort({ date: -1 }).limit(100).lean();
+  // Populate only account type — name, bank, lastFour must never reach the LLM
+  const txns = await Transaction.find(query)
+    .sort({ date: -1 })
+    .limit(100)
+    .populate("accountId", "type isCredit")
+    .lean();
   return txns;
 }
 
@@ -77,7 +82,13 @@ export function formatTransactionsForAI(txns: Awaited<ReturnType<typeof queryTra
 
   const lines = txns
     .slice(0, 15)
-    .map((t) => `${new Date(t.date).toLocaleDateString("en-IN")} | ${t.type} | ${t.category} | ${t.description} | ₹${t.amount}`)
+    .map((t) => {
+      // Only expose account type (e.g. "credit_card"), never name/bank/lastFour
+      const acct = t.accountId as { type?: string; isCredit?: boolean } | null | undefined;
+      const acctLabel = acct?.type ? ` | via ${acct.type.replace("_", " ")}` : "";
+      const repay = t.needsRepayment ? " [credit]" : "";
+      return `${new Date(t.date).toLocaleDateString("en-IN")} | ${t.type} | ${t.category} | ${t.description} | ₹${t.amount}${acctLabel}${repay}`;
+    })
     .join("\n");
 
   return `Found ${txns.length} transaction(s). Total: ₹${total.toLocaleString("en-IN")}

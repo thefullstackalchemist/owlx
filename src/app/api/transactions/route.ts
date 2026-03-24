@@ -29,7 +29,10 @@ export async function GET(req: NextRequest) {
   const type = searchParams.get("type");
   if (type) query.type = type;
 
-  const txns = await Transaction.find(query).sort({ date: -1 }).lean();
+  const txns = await Transaction.find(query)
+    .sort({ date: -1 })
+    .populate("accountId", "name bank type lastFour isCredit color")
+    .lean();
   return NextResponse.json(txns);
 }
 
@@ -37,21 +40,25 @@ export async function POST(req: NextRequest) {
   await connectDB();
 
   const body = await req.json() as {
-    amount: number;
-    type: "income" | "expense" | "transfer";
-    category: string;
-    description: string;
-    date: string;
-    platform?: string;
+    amount:          number;
+    type:            "income" | "expense" | "transfer";
+    category:        string;
+    description:     string;
+    date:            string;
+    platform?:       string;
+    accountId?:      string;
+    needsRepayment?: boolean;
   };
 
   const txn = await Transaction.create({
-    date:        new Date(body.date),
-    amount:      body.amount,
-    type:        body.type,
-    category:    body.category,
-    description: body.description,
-    platform:    body.platform || undefined,
+    date:           new Date(body.date),
+    amount:         body.amount,
+    type:           body.type,
+    category:       body.category,
+    description:    body.description,
+    platform:       body.platform       || undefined,
+    accountId:      body.accountId      || undefined,
+    needsRepayment: body.needsRepayment ?? false,
   });
 
   return NextResponse.json(txn, { status: 201 });
