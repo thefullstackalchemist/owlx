@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, CreditCard, Wallet } from "lucide-react";
+import { X, CreditCard, Wallet, Smartphone, Landmark } from "lucide-react";
 import { cn } from "@/utils/cn";
 import { TRANSACTION_CATEGORIES, CATEGORY_META } from "@/constants";
 import type { NewTransactionData } from "@/services/chatService";
@@ -11,9 +11,27 @@ interface Account {
   name:     string;
   bank:     string;
   type:     string;
+  parentId?: string;
   lastFour?: string;
-  isCredit: boolean;
-  color:    string;
+  network?:  string;
+  upiId?:    string;
+  upiApp?:   string;
+  isCredit:  boolean;
+  color:     string;
+}
+
+function AccountIcon({ type, size = 10, color }: { type: string; size?: number; color?: string }) {
+  const s = color ? { color } : {};
+  if (type === "credit_card" || type === "debit_card") return <CreditCard size={size} style={s} />;
+  if (type === "upi")                                   return <Smartphone  size={size} style={s} />;
+  if (type === "wallet")                                return <Wallet      size={size} style={s} />;
+  return <Landmark size={size} style={s} />;
+}
+
+function accountLabel(a: Account) {
+  if (a.type === "upi")    return a.upiId ?? a.name;
+  if (a.lastFour)          return `${a.name} ···· ${a.lastFour}`;
+  return a.name;
 }
 
 interface Props {
@@ -204,49 +222,58 @@ export default function NewTransactionModal({ initialData, onClose, onSave }: Pr
             </div>
           </div>
 
-          {/* Source account / card */}
-          {accounts.length > 0 && (
-            <div>
-              <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-1.5">
-                Source <span className="normal-case text-slate-300">(optional)</span>
-              </label>
-              <div className="flex flex-wrap gap-1.5">
-                <button
-                  onClick={() => setAccountId("")}
-                  className={cn(
-                    "rounded-lg border px-2.5 py-1.5 text-xs transition-all",
-                    !accountId
-                      ? "border-slate-400 bg-slate-100 text-slate-700 font-medium"
-                      : "border-black/[0.08] text-slate-400 hover:bg-black/[0.04]"
-                  )}
-                >
-                  None
-                </button>
-                {accounts.map((acc) => (
-                  <button
-                    key={acc._id}
-                    onClick={() => setAccountId(acc._id)}
-                    className={cn(
-                      "flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs transition-all",
-                      accountId === acc._id
-                        ? "font-medium text-white shadow-sm"
-                        : "border-black/[0.08] text-slate-600 hover:bg-black/[0.04]"
-                    )}
-                    style={accountId === acc._id ? { backgroundColor: acc.color, borderColor: acc.color } : {}}
-                  >
-                    {acc.isCredit ? <CreditCard size={10} /> : <Wallet size={10} />}
-                    {acc.name}
-                    {acc.lastFour && <span className="opacity-70">·· {acc.lastFour}</span>}
-                  </button>
-                ))}
+          {/* Source — grouped by type */}
+          {accounts.length > 0 && (() => {
+            const banks   = accounts.filter((a) => a.type === "savings" || a.type === "current");
+            const cards   = accounts.filter((a) => a.type === "credit_card" || a.type === "debit_card");
+            const upis    = accounts.filter((a) => a.type === "upi");
+            const wallets = accounts.filter((a) => a.type === "wallet");
+
+            const groups = [
+              { label: "Bank",    items: banks   },
+              { label: "Cards",   items: cards   },
+              { label: "UPI",     items: upis    },
+              { label: "Wallets", items: wallets },
+            ].filter((g) => g.items.length > 0);
+
+            return (
+              <div>
+                <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-1.5">
+                  Source <span className="normal-case text-slate-300">(optional)</span>
+                </label>
+                <div className="flex flex-col gap-2">
+                  {groups.map((group) => (
+                    <div key={group.label}>
+                      <p className="text-[9px] font-semibold text-slate-300 uppercase tracking-widest mb-1">{group.label}</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {group.items.map((acc) => (
+                          <button
+                            key={acc._id}
+                            onClick={() => setAccountId(accountId === acc._id ? "" : acc._id)}
+                            className={cn(
+                              "flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs transition-all",
+                              accountId === acc._id
+                                ? "font-medium text-white shadow-sm"
+                                : "border-black/[0.08] text-slate-600 hover:bg-black/[0.04]"
+                            )}
+                            style={accountId === acc._id ? { backgroundColor: acc.color, borderColor: acc.color } : {}}
+                          >
+                            <AccountIcon type={acc.type} size={10} color={accountId === acc._id ? "#fff" : acc.color} />
+                            <span className="max-w-[120px] truncate">{accountLabel(acc)}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {selectedAccount?.isCredit && (
+                  <p className="text-[10px] text-rose-500 mt-1.5">
+                    💳 Credit card — will be marked as needs repayment
+                  </p>
+                )}
               </div>
-              {selectedAccount?.isCredit && (
-                <p className="text-[10px] text-rose-500 mt-1.5">
-                  💳 Credit card — will be marked as needs repayment
-                </p>
-              )}
-            </div>
-          )}
+            );
+          })()}
 
           {/* Error */}
           {error && <p className="text-xs text-rose-500">{error}</p>}

@@ -1,12 +1,17 @@
 import { connectDB } from "@/lib/mongodb";
 import { Account } from "@/models/Account";
-import type { AccountType } from "@/models/Account";
+import type { AccountType, CardNetwork, UpiApp } from "@/models/Account";
 
 export interface AccountData {
   name:      string;
   bank:      string;
   type:      AccountType;
+  parentId?: string;
   lastFour?: string;
+  network?:  CardNetwork;
+  upiId?:    string;
+  upiApp?:   UpiApp;
+  balance?:  number;
   color?:    string;
 }
 
@@ -23,6 +28,7 @@ export async function createAccount(data: AccountData) {
     ...data,
     isCredit: CREDIT_TYPES.includes(data.type),
     color:    data.color ?? defaultColor(data.type),
+    parentId: data.parentId ?? undefined,
   });
 }
 
@@ -35,17 +41,19 @@ export async function updateAccount(id: string, data: Partial<AccountData>) {
 
 export async function deleteAccount(id: string) {
   await connectDB();
+  // Soft-delete the account and all its children (cards/UPI linked via parentId)
+  await Account.updateMany({ parentId: id }, { $set: { active: false } });
   return Account.findByIdAndUpdate(id, { $set: { active: false } });
 }
 
-function defaultColor(type: AccountType): string {
+export function defaultColor(type: AccountType): string {
   const map: Record<AccountType, string> = {
     savings:     "#6366f1",
     current:     "#0ea5e9",
     credit_card: "#f43f5e",
     debit_card:  "#10b981",
-    wallet:      "#f59e0b",
     upi:         "#8b5cf6",
+    wallet:      "#f59e0b",
   };
   return map[type] ?? "#6366f1";
 }
