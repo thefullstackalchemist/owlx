@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
-import { LayoutDashboard, ArrowLeftRight, BarChart3, Settings, UserCircle, LogOut, Landmark } from "lucide-react";
+import { LayoutDashboard, ArrowLeftRight, BarChart3, Settings, UserCircle, LogOut, Landmark, PiggyBank } from "lucide-react";
 import { cn } from "@/utils/cn";
 
 const nav = [
   { label: "Dashboard",    href: "/",             icon: LayoutDashboard },
   { label: "Transactions", href: "/transactions",  icon: ArrowLeftRight  },
   { label: "Accounts",     href: "/accounts",      icon: Landmark        },
+  { label: "Savings",      href: "/savings",       icon: PiggyBank       },
   { label: "Analysis",     href: "/analysis",      icon: BarChart3       },
 ];
 

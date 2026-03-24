@@ -100,13 +100,18 @@ function BankForm({ initial, onSave, onCancel }: {
     (initial?.type as "savings" | "current") ?? "savings"
   );
   const [lastFour, setLastFour] = useState(initial?.lastFour ?? "");
+  const [balance,  setBalance]  = useState(initial?.balance?.toString() ?? "");
   const [saving,   setSaving]   = useState(false);
 
   const submit = async () => {
     if (!name.trim() || !bank.trim()) return;
     setSaving(true);
-    await onSave({ name: name.trim(), bank: bank.trim(), type, lastFour: lastFour || undefined,
-      color: initial?.color ?? COLOR_MAP[type] });
+    await onSave({
+      name: name.trim(), bank: bank.trim(), type,
+      lastFour: lastFour || undefined,
+      balance:  balance ? Number(balance) : 0,
+      color: initial?.color ?? COLOR_MAP[type],
+    });
     setSaving(false);
   };
 
@@ -120,7 +125,7 @@ function BankForm({ initial, onSave, onCancel }: {
           <input className={INPUT} value={bank} onChange={(e) => setBank(e.target.value)} placeholder="e.g. HDFC, SBI" />
         </Field>
       </div>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-3 gap-3">
         <Field label="Type" required>
           <select className={SELECT} value={type} onChange={(e) => setType(e.target.value as "savings" | "current")}>
             <option value="savings">Savings</option>
@@ -130,6 +135,13 @@ function BankForm({ initial, onSave, onCancel }: {
         <Field label="Last 4 digits (optional)">
           <input className={INPUT + " font-mono tracking-widest"} value={lastFour}
             onChange={(e) => setLastFour(e.target.value.replace(/\D/g, "").slice(0, 4))} placeholder="1234" maxLength={4} />
+        </Field>
+        <Field label="Starting balance (₹)">
+          <div className="flex items-center gap-1 rounded-xl border border-black/[0.08] bg-white px-3 py-2">
+            <span className="text-sm text-slate-400">₹</span>
+            <input type="number" className="flex-1 bg-transparent text-sm text-slate-700 outline-none"
+              value={balance} onChange={(e) => setBalance(e.target.value)} placeholder="0" />
+          </div>
         </Field>
       </div>
       <FormActions onCancel={onCancel} onSave={submit} saving={saving} disabled={!name.trim() || !bank.trim()} />
@@ -337,6 +349,11 @@ function BankAccordion({
           <p className="text-sm font-semibold text-slate-800">{bank.name}</p>
           <p className="text-[11px] text-slate-400">{bank.bank}{bank.lastFour ? ` ···· ${bank.lastFour}` : ""}</p>
         </div>
+        {bank.balance !== undefined && (
+          <span className="text-xs font-mono font-semibold" style={{ color: c }}>
+            ₹{bank.balance.toLocaleString("en-IN")}
+          </span>
+        )}
         <div className="flex items-center gap-2 shrink-0">
           <span className="text-[10px] text-slate-400">
             {cards.length + upiItems.length} linked
