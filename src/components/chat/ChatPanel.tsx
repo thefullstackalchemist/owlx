@@ -251,6 +251,7 @@ export default function ChatPanel() {
             const event = JSON.parse(line) as
               | { t: "action";          label: string; intent: unknown }
               | { t: "new_transaction"; data: NewTransactionData }
+              | { t: "bucket_op_done";  bucketName: string; amount: number; direction: "add" | "remove"; newBalance?: number }
               | { t: "token";           v: string }
               | { t: "error";           msg: string };
 
@@ -266,6 +267,9 @@ export default function ChatPanel() {
                 m.id === assistantId ? { ...m, pendingTxn: event.data } : m
               ));
               setOpenTxnMsgId(assistantId);
+            } else if (event.t === "bucket_op_done") {
+              // Refresh savings page and any balance-showing component
+              window.dispatchEvent(new CustomEvent("owl:transaction:created"));
             } else if (event.t === "token") {
               fullResponse += event.v;
               setMessages((prev) => prev.map((m) =>

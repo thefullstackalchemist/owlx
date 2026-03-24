@@ -10,6 +10,7 @@ export interface ITransaction extends Document {
   platform?:      string;
   tags?:          string[];
   accountId?:     mongoose.Types.ObjectId;
+  accountRef:     "Account" | "Card" | "Wallet";
   needsRepayment: boolean;
   createdAt:      Date;
   updatedAt:      Date;
@@ -24,7 +25,8 @@ const TransactionSchema = new Schema<ITransaction>(
     description:    { type: String, required: true },
     platform:       { type: String },
     tags:           [{ type: String }],
-    accountId:      { type: Schema.Types.ObjectId, ref: "Account" },
+    accountId:      { type: Schema.Types.ObjectId, refPath: "accountRef" },
+    accountRef:     { type: String, enum: ["Account", "Card", "Wallet"], default: "Account" },
     needsRepayment: { type: Boolean, default: false },
   },
   { timestamps: true }

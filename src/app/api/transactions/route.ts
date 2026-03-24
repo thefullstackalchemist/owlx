@@ -2,13 +2,52 @@ import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import { Transaction } from "@/models/Transaction";
 import { Account } from "@/models/Account";
+import { Card } from "@/models/Card";
+import { Wallet } from "@/models/Wallet";
 import { getPeriodRange } from "@/services/transactions";
 
 /** Returns the balance delta for an account given a transaction type */
 function balanceDelta(type: string, amount: number): number {
   if (type === "income")  return +amount;
   if (type === "expense") return -amount;
-  return 0; // transfer — direction unclear without two accounts
+  return 0;
+}
+
+/** Resolves an ID to its source collection and updates balance accordingly */
+async function applyBalanceDelta(sourceId: string, txnType: string, amount: number) {
+  const delta = balanceDelta(txnType, amount);
+  if (delta === 0) return "Account";
+
+  // Try Card first
+  const card = await Card.findById(sourceId).lean();
+  if (card) {
+    if (card.type === "debit_card" && card.parentId) {
+      await Account.findByIdAndUpdate(card.parentId, { $inc: { balance: delta } });
+    } else if (card.type === "credit_card") {
+      await Card.findByIdAndUpdate(sourceId, { $inc: { balance: delta } });
+    }
+    return "Card";
+  }
+
+  // Try Wallet
+  const wallet = await Wallet.findById(sourceId).lean();
+  if (wallet) {
+    await Wallet.findByIdAndUpdate(sourceId, { $inc: { balance: delta } });
+    return "Wallet";
+  }
+
+  // Fall back to Account (savings / current / upi)
+  const acct = await Account.findById(sourceId).lean();
+  if (acct) {
+    if (acct.type === "savings" || acct.type === "current" || acct.type === "wallet") {
+      await Account.findByIdAndUpdate(sourceId, { $inc: { balance: delta } });
+    } else if ((acct.type === "debit_card" || acct.type === "upi") && acct.parentId) {
+      await Account.findByIdAndUpdate(acct.parentId, { $inc: { balance: delta } });
+    } else if (acct.type === "credit_card") {
+      await Account.findByIdAndUpdate(sourceId, { $inc: { balance: delta } });
+    }
+  }
+  return "Account";
 }
 
 export async function GET(req: NextRequest) {
@@ -61,6 +100,11 @@ export async function POST(req: NextRequest) {
     needsRepayment?: boolean;
   };
 
+  let accountRef: "Account" | "Card" | "Wallet" = "Account";
+  if (body.accountId) {
+    accountRef = await applyBalanceDelta(body.accountId, body.type, body.amount) as typeof accountRef;
+  }
+
   const txn = await Transaction.create({
     date:           new Date(body.date),
     amount:         body.amount,
@@ -69,16 +113,9 @@ export async function POST(req: NextRequest) {
     description:    body.description,
     platform:       body.platform       || undefined,
     accountId:      body.accountId      || undefined,
+    accountRef,
     needsRepayment: body.needsRepayment ?? false,
   });
-
-  // Update account balance if a source account was specified
-  if (body.accountId) {
-    const delta = balanceDelta(body.type, body.amount);
-    if (delta !== 0) {
-      await Account.findByIdAndUpdate(body.accountId, { $inc: { balance: delta } });
-    }
-  }
 
   return NextResponse.json(txn, { status: 201 });
 }

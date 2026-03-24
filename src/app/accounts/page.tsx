@@ -3,26 +3,54 @@
 import { useEffect, useState, useCallback } from "react";
 import {
   Plus, CreditCard, Wallet, Smartphone, ChevronDown,
-  Trash2, Landmark, Pencil, X, Check,
+  Trash2, Landmark, X, Check,
 } from "lucide-react";
 import { cn } from "@/utils/cn";
 import type { AccountType, CardNetwork, UpiApp } from "@/models/Account";
+import type { CardType } from "@/models/Card";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-interface Account {
+interface BankAccount {
   _id:       string;
   name:      string;
   bank:      string;
-  type:      AccountType;
-  parentId?: string;
+  type:      "savings" | "current";
   lastFour?: string;
-  network?:  CardNetwork;
-  upiId?:    string;
-  upiApp?:   UpiApp;
   balance?:  number;
-  isCredit:  boolean;
   color:     string;
+}
+
+interface UpiAccount {
+  _id:      string;
+  name:     string;
+  bank:     string;
+  type:     "upi";
+  parentId: string;
+  upiId?:   string;
+  upiApp?:  UpiApp;
+  color:    string;
+}
+
+interface CardItem {
+  _id:          string;
+  name:         string;
+  bank:         string;
+  type:         CardType;
+  parentId?:    string;
+  lastFour?:    string;
+  network?:     CardNetwork;
+  balance?:     number;
+  creditLimit?: number;
+  isCredit:     boolean;
+  color:        string;
+}
+
+interface WalletItem {
+  _id:     string;
+  name:    string;
+  balance: number;
+  color:   string;
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -30,23 +58,19 @@ interface Account {
 const NETWORKS: CardNetwork[] = ["Visa", "Mastercard", "RuPay", "Amex", "Diners"];
 const UPI_APPS: UpiApp[]      = ["Google Pay", "PhonePe", "Paytm", "BHIM", "Amazon Pay", "Other"];
 
-const COLOR_MAP: Record<AccountType, string> = {
-  savings:     "#6366f1",
-  current:     "#0ea5e9",
-  credit_card: "#f43f5e",
-  debit_card:  "#10b981",
-  upi:         "#8b5cf6",
-  wallet:      "#f59e0b",
-};
-
 const POPULAR_WALLETS = [
   "BigBasket", "Country Delight", "Amazon Pay", "Paytm", "PhonePe",
   "Ola Money", "MobiKwik", "Freecharge", "JioMoney", "Airtel Money",
 ];
 
+const BANK_COLOR_MAP: Record<"savings" | "current", string> = {
+  savings: "#6366f1",
+  current: "#0ea5e9",
+};
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function typeIcon(type: AccountType, size = 14, color?: string) {
+function typeIcon(type: AccountType | CardType, size = 14, color?: string) {
   const style = color ? { color } : {};
   if (type === "credit_card" || type === "debit_card") return <CreditCard size={size} style={style} />;
   if (type === "upi")                                   return <Smartphone  size={size} style={style} />;
@@ -56,23 +80,17 @@ function typeIcon(type: AccountType, size = 14, color?: string) {
 
 // ─── API helpers ──────────────────────────────────────────────────────────────
 
-async function apiCreate(data: object) {
-  return fetch("/api/accounts", {
+async function post(url: string, data: object) {
+  return fetch(url, {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   });
 }
-async function apiUpdate(id: string, data: object) {
-  return fetch(`/api/accounts/${id}`, {
-    method: "PATCH", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
-  });
-}
-async function apiDelete(id: string) {
-  return fetch(`/api/accounts/${id}`, { method: "DELETE" });
+async function del(url: string) {
+  return fetch(url, { method: "DELETE" });
 }
 
-// ─── Mini forms ───────────────────────────────────────────────────────────────
+// ─── Field / form primitives ──────────────────────────────────────────────────
 
 function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (
@@ -85,12 +103,28 @@ function Field({ label, required, children }: { label: string; required?: boolea
   );
 }
 
-const INPUT = "w-full rounded-xl border border-black/[0.08] bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-indigo-300 transition-colors";
+const INPUT  = "w-full rounded-xl border border-black/[0.08] bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-indigo-300 transition-colors";
 const SELECT = INPUT;
+
+function FormActions({ onCancel, onSave, saving, disabled }: {
+  onCancel: () => void; onSave: () => void; saving: boolean; disabled: boolean;
+}) {
+  return (
+    <div className="flex gap-2">
+      <button onClick={onCancel} className="flex-1 rounded-xl border border-black/[0.08] py-2 text-xs text-slate-500 hover:bg-black/[0.04] transition-colors">
+        <X size={11} className="inline mr-1" />Cancel
+      </button>
+      <button onClick={onSave} disabled={saving || disabled}
+        className="flex-1 rounded-xl bg-indigo-600 py-2 text-xs font-semibold text-white hover:bg-indigo-700 transition-colors disabled:opacity-50">
+        <Check size={11} className="inline mr-1" />{saving ? "Saving…" : "Save"}
+      </button>
+    </div>
+  );
+}
 
 // ── Bank account form ─────────────────────────────────────────────────────────
 function BankForm({ initial, onSave, onCancel }: {
-  initial?: Partial<Account>;
+  initial?: Partial<BankAccount>;
   onSave: (d: object) => Promise<void>;
   onCancel: () => void;
 }) {
@@ -110,7 +144,7 @@ function BankForm({ initial, onSave, onCancel }: {
       name: name.trim(), bank: bank.trim(), type,
       lastFour: lastFour || undefined,
       balance:  balance ? Number(balance) : 0,
-      color: initial?.color ?? COLOR_MAP[type],
+      color: initial?.color ?? BANK_COLOR_MAP[type],
     });
     setSaving(false);
   };
@@ -150,21 +184,29 @@ function BankForm({ initial, onSave, onCancel }: {
 }
 
 // ── Card form ─────────────────────────────────────────────────────────────────
-function CardForm({ parentId, onSave, onCancel }: {
+function CardForm({ parentId, bank, onSave, onCancel }: {
   parentId: string;
+  bank:     string;
   onSave: (d: object) => Promise<void>;
   onCancel: () => void;
 }) {
-  const [name,     setName]     = useState("");
-  const [type,     setType]     = useState<"debit_card" | "credit_card">("debit_card");
-  const [lastFour, setLastFour] = useState("");
-  const [network,  setNetwork]  = useState<CardNetwork>("Visa");
-  const [saving,   setSaving]   = useState(false);
+  const [name,        setName]        = useState("");
+  const [type,        setType]        = useState<CardType>("debit_card");
+  const [lastFour,    setLastFour]    = useState("");
+  const [network,     setNetwork]     = useState<CardNetwork>("Visa");
+  const [creditLimit, setCreditLimit] = useState("");
+  const [saving,      setSaving]      = useState(false);
 
   const submit = async () => {
-    if (!name.trim() || !lastFour) return;
+    if (!name.trim() || lastFour.length < 4) return;
+    if (type === "credit_card" && !creditLimit) return;
     setSaving(true);
-    await onSave({ name: name.trim(), type, lastFour, network, parentId, bank: "", color: COLOR_MAP[type] });
+    const limit = type === "credit_card" ? Number(creditLimit) : undefined;
+    await onSave({
+      name: name.trim(), type, lastFour, network, parentId, bank,
+      color: type === "credit_card" ? "#f43f5e" : "#10b981",
+      ...(limit !== undefined ? { creditLimit: limit, balance: limit } : {}),
+    });
     setSaving(false);
   };
 
@@ -182,7 +224,7 @@ function CardForm({ parentId, onSave, onCancel }: {
       </div>
       <div className="grid grid-cols-2 gap-2">
         <Field label="Type" required>
-          <select className={SELECT} value={type} onChange={(e) => setType(e.target.value as "debit_card" | "credit_card")}>
+          <select className={SELECT} value={type} onChange={(e) => setType(e.target.value as CardType)}>
             <option value="debit_card">Debit Card</option>
             <option value="credit_card">Credit Card</option>
           </select>
@@ -193,7 +235,19 @@ function CardForm({ parentId, onSave, onCancel }: {
           </select>
         </Field>
       </div>
-      <FormActions onCancel={onCancel} onSave={submit} saving={saving} disabled={!name.trim() || lastFour.length < 4} />
+      {type === "credit_card" && (
+        <Field label="Credit limit (₹)" required>
+          <div className="flex items-center gap-1 rounded-xl border border-black/[0.08] bg-white px-3 py-2">
+            <span className="text-sm text-slate-400">₹</span>
+            <input type="number" className="flex-1 bg-transparent text-sm text-slate-700 outline-none font-mono"
+              value={creditLimit} onChange={(e) => setCreditLimit(e.target.value)} placeholder="50000" />
+          </div>
+        </Field>
+      )}
+      <FormActions
+        onCancel={onCancel} onSave={submit} saving={saving}
+        disabled={!name.trim() || lastFour.length < 4 || (type === "credit_card" && !creditLimit)}
+      />
     </div>
   );
 }
@@ -211,7 +265,7 @@ function UpiForm({ parentId, bank, onSave, onCancel }: {
   const submit = async () => {
     if (!upiId.trim()) return;
     setSaving(true);
-    await onSave({ name: upiApp, bank, type: "upi", upiId: upiId.trim(), upiApp, parentId, color: COLOR_MAP.upi });
+    await onSave({ name: upiApp, bank, type: "upi", upiId: upiId.trim(), upiApp, parentId, color: "#8b5cf6" });
     setSaving(false);
   };
 
@@ -245,8 +299,7 @@ function WalletForm({ onSave, onCancel }: {
   const submit = async () => {
     if (!name.trim()) return;
     setSaving(true);
-    await onSave({ name: name.trim(), bank: name.trim(), type: "wallet",
-      balance: balance ? Number(balance) : 0, color: COLOR_MAP.wallet });
+    await onSave({ name: name.trim(), balance: balance ? Number(balance) : 0, color: "#f59e0b" });
     setSaving(false);
   };
 
@@ -272,34 +325,24 @@ function WalletForm({ onSave, onCancel }: {
   );
 }
 
-// ── Shared form actions ───────────────────────────────────────────────────────
-function FormActions({ onCancel, onSave, saving, disabled }: {
-  onCancel: () => void; onSave: () => void; saving: boolean; disabled: boolean;
-}) {
-  return (
-    <div className="flex gap-2">
-      <button onClick={onCancel} className="flex-1 rounded-xl border border-black/[0.08] py-2 text-xs text-slate-500 hover:bg-black/[0.04] transition-colors">
-        <X size={11} className="inline mr-1" />Cancel
-      </button>
-      <button onClick={onSave} disabled={saving || disabled}
-        className="flex-1 rounded-xl bg-indigo-600 py-2 text-xs font-semibold text-white hover:bg-indigo-700 transition-colors disabled:opacity-50">
-        <Check size={11} className="inline mr-1" />{saving ? "Saving…" : "Save"}
-      </button>
-    </div>
-  );
-}
-
 // ─── Card chip ────────────────────────────────────────────────────────────────
-function CardChip({ account, onDelete }: { account: Account; onDelete: () => void }) {
-  const c = account.color;
+function CardChip({ card, onDelete }: { card: CardItem; onDelete: () => void }) {
+  const c = card.color;
+  const isCreditCard = card.type === "credit_card";
+  const available    = card.balance   ?? 0;
+  const limit        = card.creditLimit ?? 0;
+  const used         = limit - available;
+  const usedPct      = limit > 0 ? Math.min((used / limit) * 100, 100) : 0;
+  const overLimit    = available < 0;
+
   return (
     <div className="relative group flex flex-col gap-1.5 rounded-2xl border p-3 transition-shadow hover:shadow-md"
       style={{ borderColor: c + "44", background: c + "0d" }}>
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-1.5">
-          {typeIcon(account.type, 12, c)}
+          {typeIcon(card.type, 12, c)}
           <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: c }}>
-            {account.type === "credit_card" ? "Credit" : account.type === "debit_card" ? "Debit" : "UPI"}
+            {isCreditCard ? "Credit" : "Debit"}
           </span>
         </div>
         <button onClick={onDelete}
@@ -308,12 +351,50 @@ function CardChip({ account, onDelete }: { account: Account; onDelete: () => voi
         </button>
       </div>
       <div>
-        <p className="text-sm font-semibold text-slate-800 truncate">
-          {account.upiId ?? account.name}
-        </p>
+        <p className="text-sm font-semibold text-slate-800 truncate">{card.name}</p>
         <p className="text-[10px] text-slate-400 mt-0.5">
-          {account.upiApp ?? (account.network && account.lastFour ? `${account.network} ···· ${account.lastFour}` : account.lastFour ? `···· ${account.lastFour}` : "")}
+          {card.network && card.lastFour ? `${card.network} ···· ${card.lastFour}` : card.lastFour ? `···· ${card.lastFour}` : ""}
         </p>
+      </div>
+      {isCreditCard && limit > 0 && (
+        <div className="mt-0.5">
+          <div className="h-1 w-full rounded-full bg-black/[0.06] overflow-hidden">
+            <div
+              className={cn("h-full rounded-full transition-all", overLimit ? "bg-rose-500" : usedPct > 80 ? "bg-amber-400" : "bg-emerald-400")}
+              style={{ width: `${usedPct}%` }}
+            />
+          </div>
+          <div className="flex justify-between mt-0.5">
+            <span className={cn("text-[9px] font-mono", overLimit ? "text-rose-500 font-semibold" : "text-slate-400")}>
+              ₹{used.toLocaleString("en-IN")} used
+            </span>
+            <span className="text-[9px] text-slate-300 font-mono">₹{limit.toLocaleString("en-IN")} limit</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── UPI chip ─────────────────────────────────────────────────────────────────
+function UpiChip({ upi, onDelete }: { upi: UpiAccount; onDelete: () => void }) {
+  const c = upi.color;
+  return (
+    <div className="relative group flex flex-col gap-1.5 rounded-2xl border p-3 transition-shadow hover:shadow-md"
+      style={{ borderColor: c + "44", background: c + "0d" }}>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-1.5">
+          <Smartphone size={12} style={{ color: c }} />
+          <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: c }}>UPI</span>
+        </div>
+        <button onClick={onDelete}
+          className="opacity-0 group-hover:opacity-100 p-1 rounded-lg hover:bg-rose-50 text-slate-300 hover:text-rose-400 transition-all">
+          <Trash2 size={11} />
+        </button>
+      </div>
+      <div>
+        <p className="text-sm font-semibold text-slate-800 truncate">{upi.upiId ?? upi.name}</p>
+        <p className="text-[10px] text-slate-400 mt-0.5">{upi.upiApp}</p>
       </div>
     </div>
   );
@@ -321,25 +402,27 @@ function CardChip({ account, onDelete }: { account: Account; onDelete: () => voi
 
 // ─── Bank accordion ───────────────────────────────────────────────────────────
 function BankAccordion({
-  bank, children: cards, upiItems, onAddCard, onAddUpi, onDeleteBank, onDeleteChild,
+  bank, cardItems, upiItems, onAddCard, onAddUpi, onDeleteBank, onDeleteCard, onDeleteUpi,
 }: {
-  bank:          Account;
-  children:      Account[];   // cards
-  upiItems:      Account[];
+  bank:          BankAccount;
+  cardItems:     CardItem[];
+  upiItems:      UpiAccount[];
   onAddCard:     () => void;
   onAddUpi:      () => void;
   onDeleteBank:  () => void;
-  onDeleteChild: (id: string) => void;
+  onDeleteCard:  (id: string) => void;
+  onDeleteUpi:   (id: string) => void;
 }) {
   const [open, setOpen] = useState(true);
   const c = bank.color;
 
   return (
     <div className="rounded-2xl border overflow-hidden" style={{ borderColor: c + "33" }}>
-      {/* Header */}
-      <button
+      <div
+        role="button" tabIndex={0}
         onClick={() => setOpen((o) => !o)}
-        className="flex items-center gap-3 w-full px-4 py-3.5 text-left transition-colors hover:bg-black/[0.02]"
+        onKeyDown={(e) => e.key === "Enter" && setOpen((o) => !o)}
+        className="flex items-center gap-3 w-full px-4 py-3.5 text-left transition-colors hover:bg-black/[0.02] cursor-pointer"
         style={{ background: c + "0a" }}
       >
         <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: c + "22" }}>
@@ -351,25 +434,24 @@ function BankAccordion({
         </div>
         {bank.balance !== undefined && (
           <span className="text-xs font-mono font-semibold" style={{ color: c }}>
-            ₹{bank.balance.toLocaleString("en-IN")}
+            ₹{(bank.balance ?? 0).toLocaleString("en-IN")}
           </span>
         )}
         <div className="flex items-center gap-2 shrink-0">
-          <span className="text-[10px] text-slate-400">
-            {cards.length + upiItems.length} linked
-          </span>
-          <button onClick={(e) => { e.stopPropagation(); onDeleteBank(); }}
-            className="p-1.5 rounded-lg hover:bg-rose-50 text-slate-300 hover:text-rose-400 transition-all">
+          <span className="text-[10px] text-slate-400">{cardItems.length + upiItems.length} linked</span>
+          <button
+            onClick={(e) => { e.stopPropagation(); onDeleteBank(); }}
+            className="p-1.5 rounded-lg hover:bg-rose-50 text-slate-300 hover:text-rose-400 transition-all"
+          >
             <Trash2 size={12} />
           </button>
           <ChevronDown size={14} className={cn("text-slate-400 transition-transform", open && "rotate-180")} />
         </div>
-      </button>
+      </div>
 
-      {/* Body */}
       {open && (
         <div className="px-4 py-4 border-t border-black/[0.05] flex flex-col gap-4">
-          {/* Cards row */}
+          {/* Cards */}
           <div>
             <div className="flex items-center justify-between mb-2.5">
               <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Cards</p>
@@ -378,18 +460,18 @@ function BankAccordion({
                 <Plus size={10} />Add card
               </button>
             </div>
-            {cards.length === 0 ? (
+            {cardItems.length === 0 ? (
               <p className="text-xs text-slate-300 italic">No cards linked yet</p>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {cards.map((card) => (
-                  <CardChip key={card._id} account={card} onDelete={() => onDeleteChild(card._id)} />
+                {cardItems.map((card) => (
+                  <CardChip key={card._id} card={card} onDelete={() => onDeleteCard(card._id)} />
                 ))}
               </div>
             )}
           </div>
 
-          {/* UPI row */}
+          {/* UPI */}
           <div>
             <div className="flex items-center justify-between mb-2.5">
               <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">UPI</p>
@@ -403,7 +485,7 @@ function BankAccordion({
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {upiItems.map((upi) => (
-                  <CardChip key={upi._id} account={upi} onDelete={() => onDeleteChild(upi._id)} />
+                  <UpiChip key={upi._id} upi={upi} onDelete={() => onDeleteUpi(upi._id)} />
                 ))}
               </div>
             )}
@@ -415,8 +497,8 @@ function BankAccordion({
 }
 
 // ─── Wallet chip ──────────────────────────────────────────────────────────────
-function WalletChip({ account, onDelete }: { account: Account; onDelete: () => void }) {
-  const c = account.color;
+function WalletChip({ wallet, onDelete }: { wallet: WalletItem; onDelete: () => void }) {
+  const c = wallet.color;
   return (
     <div className="relative group flex flex-col gap-2 rounded-2xl border p-4 hover:shadow-md transition-shadow"
       style={{ borderColor: c + "44", background: c + "0d" }}>
@@ -430,10 +512,10 @@ function WalletChip({ account, onDelete }: { account: Account; onDelete: () => v
         </button>
       </div>
       <div>
-        <p className="text-sm font-semibold text-slate-800">{account.name}</p>
-        {account.balance !== undefined && account.balance > 0 && (
+        <p className="text-sm font-semibold text-slate-800">{wallet.name}</p>
+        {wallet.balance > 0 && (
           <p className="text-xs font-mono font-semibold mt-0.5" style={{ color: c }}>
-            ₹{account.balance.toLocaleString("en-IN")}
+            ₹{wallet.balance.toLocaleString("en-IN")}
           </p>
         )}
       </div>
@@ -451,37 +533,91 @@ type AddingState =
   | null;
 
 export default function AccountsPage() {
-  const [accounts, setAccounts] = useState<Account[]>([]);
-  const [loading,  setLoading]  = useState(true);
-  const [adding,   setAdding]   = useState<AddingState>(null);
+  const [banks,   setBanks]   = useState<BankAccount[]>([]);
+  const [upis,    setUpis]    = useState<UpiAccount[]>([]);
+  const [cards,   setCards]   = useState<CardItem[]>([]);
+  const [wallets, setWallets] = useState<WalletItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [adding,  setAdding]  = useState<AddingState>(null);
 
-  const load = useCallback(() => {
-    fetch("/api/accounts")
-      .then((r) => r.json())
-      .then((d: Account[]) => { setAccounts(d); setLoading(false); })
-      .catch(() => setLoading(false));
+  const load = useCallback(async () => {
+    const [acctRes, cardRes, walletRes] = await Promise.all([
+      fetch("/api/accounts"),
+      fetch("/api/cards"),
+      fetch("/api/wallets"),
+    ]);
+    const [accts, cardData, walletData] = await Promise.all([
+      acctRes.json(),
+      cardRes.json(),
+      walletRes.json(),
+    ]);
+    setBanks(accts.filter((a: BankAccount) => a.type === "savings" || a.type === "current"));
+    setUpis(accts.filter((a: UpiAccount) => a.type === "upi"));
+    setCards(cardData);
+    setWallets(walletData);
+    setLoading(false);
   }, []);
 
   useEffect(() => { load(); }, [load]);
 
-  // Group data
-  const banks   = accounts.filter((a) => a.type === "savings" || a.type === "current");
-  const cards   = accounts.filter((a) => a.type === "credit_card" || a.type === "debit_card");
-  const upis    = accounts.filter((a) => a.type === "upi");
-  const wallets = accounts.filter((a) => a.type === "wallet");
+  useEffect(() => {
+    window.addEventListener("owl:transaction:created", load);
+    return () => window.removeEventListener("owl:transaction:created", load);
+  }, [load]);
 
-  const cardsFor = (bankId: string)  => cards.filter((c) => c.parentId === bankId);
-  const upisFor  = (bankId: string)  => upis.filter((u)  => u.parentId === bankId);
+  const cardsFor = (bankId: string) => cards.filter((c) => c.parentId === bankId);
+  const upisFor  = (bankId: string) => upis.filter((u) => u.parentId === bankId);
 
-  const handleCreate = async (data: object) => {
-    await apiCreate(data);
+  const handleCreateBank = async (data: object) => {
+    const res = await post("/api/accounts", data);
+    if (!res.ok) { console.error("[accounts] create failed", await res.json().catch(() => ({}))); return; }
     setAdding(null);
     load();
   };
-  const handleDelete = async (id: string) => {
-    await apiDelete(id);
+
+  const handleCreateUpi = async (data: object) => {
+    const res = await post("/api/accounts", data);
+    if (!res.ok) { console.error("[accounts] upi create failed", await res.json().catch(() => ({}))); return; }
+    setAdding(null);
     load();
   };
+
+  const handleCreateCard = async (data: object) => {
+    const res = await post("/api/cards", data);
+    if (!res.ok) { console.error("[cards] create failed", await res.json().catch(() => ({}))); return; }
+    setAdding(null);
+    load();
+  };
+
+  const handleCreateWallet = async (data: object) => {
+    const res = await post("/api/wallets", data);
+    if (!res.ok) { console.error("[wallets] create failed", await res.json().catch(() => ({}))); return; }
+    setAdding(null);
+    load();
+  };
+
+  const handleDeleteBank = async (id: string) => {
+    await del(`/api/accounts/${id}`);
+    load();
+  };
+
+  const handleDeleteCard = async (id: string) => {
+    await del(`/api/cards/${id}`);
+    load();
+  };
+
+  const handleDeleteUpi = async (id: string) => {
+    await del(`/api/accounts/${id}`);
+    load();
+  };
+
+  const handleDeleteWallet = async (id: string) => {
+    await del(`/api/wallets/${id}`);
+    load();
+  };
+
+  const totalCards   = cards.length;
+  const totalWallets = wallets.length;
 
   return (
     <div className="flex flex-col h-full">
@@ -490,7 +626,7 @@ export default function AccountsPage() {
         <div>
           <h1 className="text-[18px] font-semibold tracking-tight text-slate-800">Accounts & Cards</h1>
           <p className="text-xs text-slate-400 mt-0.5">
-            {banks.length} bank{banks.length !== 1 ? "s" : ""} · {cards.length} card{cards.length !== 1 ? "s" : ""} · {wallets.length} wallet{wallets.length !== 1 ? "s" : ""}
+            {banks.length} bank{banks.length !== 1 ? "s" : ""} · {totalCards} card{totalCards !== 1 ? "s" : ""} · {totalWallets} wallet{totalWallets !== 1 ? "s" : ""}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -526,7 +662,7 @@ export default function AccountsPage() {
 
               {adding?.type === "bank" && (
                 <div className="mb-4">
-                  <BankForm onSave={handleCreate} onCancel={() => setAdding(null)} />
+                  <BankForm onSave={handleCreateBank} onCancel={() => setAdding(null)} />
                 </div>
               )}
 
@@ -542,21 +678,22 @@ export default function AccountsPage() {
                     <div key={bank._id}>
                       <BankAccordion
                         bank={bank}
-                        children={cardsFor(bank._id)}
+                        cardItems={cardsFor(bank._id)}
                         upiItems={upisFor(bank._id)}
                         onAddCard={() => setAdding({ type: "card", parentId: bank._id, bank: bank.bank })}
                         onAddUpi={() => setAdding({ type: "upi", parentId: bank._id, bank: bank.bank })}
-                        onDeleteBank={() => handleDelete(bank._id)}
-                        onDeleteChild={(id) => handleDelete(id)}
+                        onDeleteBank={() => handleDeleteBank(bank._id)}
+                        onDeleteCard={handleDeleteCard}
+                        onDeleteUpi={handleDeleteUpi}
                       />
                       {adding?.type === "card" && adding.parentId === bank._id && (
                         <div className="mt-2">
-                          <CardForm parentId={bank._id} onSave={handleCreate} onCancel={() => setAdding(null)} />
+                          <CardForm parentId={bank._id} bank={adding.bank} onSave={handleCreateCard} onCancel={() => setAdding(null)} />
                         </div>
                       )}
                       {adding?.type === "upi" && adding.parentId === bank._id && (
                         <div className="mt-2">
-                          <UpiForm parentId={bank._id} bank={bank.bank} onSave={handleCreate} onCancel={() => setAdding(null)} />
+                          <UpiForm parentId={bank._id} bank={bank.bank} onSave={handleCreateUpi} onCancel={() => setAdding(null)} />
                         </div>
                       )}
                     </div>
@@ -571,7 +708,7 @@ export default function AccountsPage() {
 
               {adding?.type === "wallet" && (
                 <div className="mb-4">
-                  <WalletForm onSave={handleCreate} onCancel={() => setAdding(null)} />
+                  <WalletForm onSave={handleCreateWallet} onCancel={() => setAdding(null)} />
                 </div>
               )}
 
@@ -584,7 +721,7 @@ export default function AccountsPage() {
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                   {wallets.map((w) => (
-                    <WalletChip key={w._id} account={w} onDelete={() => handleDelete(w._id)} />
+                    <WalletChip key={w._id} wallet={w} onDelete={() => handleDeleteWallet(w._id)} />
                   ))}
                 </div>
               )}

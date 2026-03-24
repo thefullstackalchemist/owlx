@@ -33,6 +33,7 @@ export const TRANSACTION_CATEGORIES = [
   "Investment Returns",
   "Business Income",
   // Neutral
+  "Savings",
   "Transfer",
   "Other",
 ] as const;
@@ -58,6 +59,7 @@ export const CATEGORY_META: Record<string, { emoji: string; defaultType: "income
   "Freelance":          { emoji: "💻", defaultType: "income"  },
   "Investment Returns": { emoji: "📈", defaultType: "income"  },
   "Business Income":    { emoji: "🏢", defaultType: "income"  },
+  "Savings":            { emoji: "🪣", defaultType: "income"  },
   "Transfer":           { emoji: "↔️", defaultType: "transfer"},
   "Other":              { emoji: "📦", defaultType: "expense" },
 };

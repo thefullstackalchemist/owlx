@@ -1,18 +1,20 @@
 import { connectDB } from "@/lib/mongodb";
 import { Account } from "@/models/Account";
+import { Card } from "@/models/Card";
 import type { AccountType, CardNetwork, UpiApp } from "@/models/Account";
 
 export interface AccountData {
-  name:      string;
-  bank:      string;
-  type:      AccountType;
-  parentId?: string;
-  lastFour?: string;
-  network?:  CardNetwork;
-  upiId?:    string;
-  upiApp?:   UpiApp;
-  balance?:  number;
-  color?:    string;
+  name:         string;
+  bank:         string;
+  type:         AccountType;
+  parentId?:    string;
+  lastFour?:    string;
+  network?:     CardNetwork;
+  upiId?:       string;
+  upiApp?:      UpiApp;
+  balance?:     number;
+  creditLimit?: number;
+  color?:       string;
 }
 
 const CREDIT_TYPES: AccountType[] = ["credit_card"];
@@ -41,8 +43,11 @@ export async function updateAccount(id: string, data: Partial<AccountData>) {
 
 export async function deleteAccount(id: string) {
   await connectDB();
-  // Soft-delete the account and all its children (cards/UPI linked via parentId)
-  await Account.updateMany({ parentId: id }, { $set: { active: false } });
+  // Soft-delete linked UPI handles (in accounts collection) and cards (in cards collection)
+  await Promise.all([
+    Account.updateMany({ parentId: id }, { $set: { active: false } }),
+    Card.updateMany({ parentId: id }, { $set: { active: false } }),
+  ]);
   return Account.findByIdAndUpdate(id, { $set: { active: false } });
 }
 

@@ -1,14 +1,17 @@
 import { queryTransactions, formatTransactionsForAI } from "./transactions";
+import { executeBucketOperation } from "./savingsService";
 import type { ChatIntent, NewTransactionData } from "./chatService";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface ActionResult {
-  label: string;
-  intent: ChatIntent;
-  data: string;
+  label:          string;
+  intent:         ChatIntent;
+  data:           string;
   /** Present only for add_transaction — prefills the modal */
   newTransaction?: NewTransactionData;
+  /** Present only for bucket_operation */
+  bucketOpDone?:  { bucketName: string; amount: number; direction: "add" | "remove"; newBalance?: number };
 }
 
 interface ActionHandler {
@@ -48,6 +51,9 @@ class ActionConsumer {
     const result: ActionResult = { label, intent, data };
     if (intent.action === "add_transaction" && intent.newTransaction) {
       result.newTransaction = intent.newTransaction;
+    }
+    if (intent.action === "bucket_operation") {
+      try { result.bucketOpDone = JSON.parse(data); } catch { /* noop */ }
     }
 
     return result;
@@ -95,5 +101,23 @@ actionConsumer.register("add_transaction", {
       `  Description: ${t.description}`,
       `  Date: ${t.date}`,
     ].join("\n");
+  },
+});
+
+// ─── bucket_operation ─────────────────────────────────────────────────────────
+
+actionConsumer.register("bucket_operation", {
+  getLabel(intent) {
+    const op = intent.bucketOperation;
+    if (!op) return "Processing bucket…";
+    const verb = op.direction === "add" ? "Adding" : "Removing";
+    return `${verb} ₹${op.amount.toLocaleString("en-IN")} ${op.direction === "add" ? "to" : "from"} "${op.bucketName}"…`;
+  },
+
+  async execute(intent) {
+    const op = intent.bucketOperation;
+    if (!op) return JSON.stringify({ ok: false, error: "No bucket operation data" });
+    const result = await executeBucketOperation(op);
+    return JSON.stringify(result);
   },
 });

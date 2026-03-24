@@ -20,7 +20,8 @@ export interface IAccount extends Document {
   network?:   CardNetwork;      // cards only
   upiId?:     string;           // UPI only  (e.g. "9876543210@hdfcbank")
   upiApp?:    UpiApp;           // UPI only
-  balance?:   number;           // wallets only
+  balance?:     number;         // bank/wallet: cash balance; credit_card: available credit
+  creditLimit?: number;         // credit_card only — the sanctioned limit
   isCredit:   boolean;
   color:      string;
   active:     boolean;
@@ -38,8 +39,9 @@ const AccountSchema = new Schema<IAccount>(
     network:  { type: String, enum: ["Visa", "Mastercard", "RuPay", "Amex", "Diners"] },
     upiId:    { type: String, trim: true },
     upiApp:   { type: String, enum: ["Google Pay", "PhonePe", "Paytm", "BHIM", "Amazon Pay", "Other"] },
-    balance:  { type: Number, min: 0 },
-    isCredit: { type: Boolean, default: false },
+    balance:     { type: Number, default: 0 },
+    creditLimit: { type: Number },
+    isCredit:    { type: Boolean, default: false },
     color:    { type: String,  default: "#6366f1" },
     active:   { type: Boolean, default: true },
   },

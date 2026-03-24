@@ -1,11 +1,35 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { TrendingUp, TrendingDown, Minus, ArrowRight, Plus } from "lucide-react";
 import Link from "next/link";
+import {
+  PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend,
+  AreaChart, Area, XAxis, YAxis, CartesianGrid,
+} from "recharts";
+import { cn } from "@/utils/cn";
 import NewTransactionModal from "@/components/transactions/NewTransactionModal";
 import NewRecurringModal from "@/components/transactions/NewRecurringModal";
 import type { NewTransactionData } from "@/services/chatService";
+import { CATEGORY_META, CURRENCY } from "@/constants";
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface DashboardData {
+  income:                number;
+  expenses:              number;
+  netWorth:              number;
+  savingsRate:           number | null;
+  categoryBreakdown:     { name: string; value: number }[];
+  recentTransactions:    {
+    _id: string; amount: number; type: string; category: string;
+    description: string; date: string; platform?: string;
+  }[];
+  accountExpenseSeries:  Record<string, string | number>[];
+  accountNames:          string[];
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function greeting() {
   const h = new Date().getHours();
@@ -20,46 +44,313 @@ function formatDate() {
   });
 }
 
-const stats = [
-  { label: "Net Worth",    value: "₹0", change: null, description: "all time",   color: "text-slate-800"  },
-  { label: "Income",       value: "₹0", change: null, description: "this month", color: "text-green-600"  },
-  { label: "Expenses",     value: "₹0", change: null, description: "this month", color: "text-rose-500"   },
-  { label: "Savings Rate", value: "—",  change: null, description: "this month", color: "text-blue-500"   },
+function fmt(n: number) {
+  return n.toLocaleString("en-IN");
+}
+
+// ─── Palettes ─────────────────────────────────────────────────────────────────
+
+const CHART_COLORS = [
+  "#6366f1", "#0ea5e9", "#10b981", "#f59e0b",
+  "#f43f5e", "#8b5cf6",
 ];
 
-function StatCard({ label, value, change, color, description }: {
-  label: string; value: string; change: number | null; color: string; description: string;
+// Visually distinguishable palette for overlapping areas
+const AREA_COLORS = [
+  "#6366f1", // indigo
+  "#0ea5e9", // sky
+  "#10b981", // emerald
+  "#f59e0b", // amber
+  "#f43f5e", // rose
+  "#8b5cf6", // violet
+  "#14b8a6", // teal
+  "#fb923c", // orange
+];
+
+// ─── Account expense area chart ───────────────────────────────────────────────
+
+function AccountExpenseChart({
+  series,
+  accountNames,
+}: {
+  series:       Record<string, string | number>[];
+  accountNames: string[];
+}) {
+  const [hidden, setHidden] = useState<Set<string>>(new Set());
+
+  const toggle = (name: string) =>
+    setHidden((prev) => {
+      const next = new Set(prev);
+      next.has(name) ? next.delete(name) : next.add(name);
+      return next;
+    });
+
+  if (!series.length || !accountNames.length) {
+    return (
+      <div className="flex h-56 items-center justify-center text-xs text-slate-400">
+        No account expense data this month
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      {/* Legend — click to toggle */}
+      <div className="flex flex-wrap gap-2">
+        {accountNames.map((name, i) => {
+          const color  = AREA_COLORS[i % AREA_COLORS.length];
+          const active = !hidden.has(name);
+          return (
+            <button
+              key={name}
+              onClick={() => toggle(name)}
+              className={cn(
+                "flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-all",
+                active
+                  ? "border-transparent text-white shadow-sm"
+                  : "border-slate-200 bg-white text-slate-400"
+              )}
+              style={active ? { background: color } : {}}
+            >
+              <span
+                className="w-2 h-2 rounded-full shrink-0"
+                style={{ background: active ? "rgba(255,255,255,0.6)" : color }}
+              />
+              {name}
+            </button>
+          );
+        })}
+      </div>
+
+      <ResponsiveContainer width="100%" height={240}>
+        <AreaChart data={series} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+          <defs>
+            {accountNames.map((name, i) => {
+              const color = AREA_COLORS[i % AREA_COLORS.length];
+              return (
+                <linearGradient key={name} id={`grad-${i}`} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%"  stopColor={color} stopOpacity={0.25} />
+                  <stop offset="95%" stopColor={color} stopOpacity={0.02} />
+                </linearGradient>
+              );
+            })}
+          </defs>
+          <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.04)" vertical={false} />
+          <XAxis
+            dataKey="date"
+            tick={{ fontSize: 10, fill: "#94a3b8" }}
+            tickLine={false}
+            axisLine={false}
+            interval="preserveStartEnd"
+          />
+          <YAxis
+            tick={{ fontSize: 10, fill: "#94a3b8" }}
+            tickLine={false}
+            axisLine={false}
+            tickFormatter={(v: number) => v >= 1000 ? `₹${(v / 1000).toFixed(0)}k` : `₹${v}`}
+            width={42}
+          />
+          <Tooltip
+            contentStyle={{
+              background: "rgba(255,255,255,0.96)",
+              border: "1px solid rgba(0,0,0,0.06)",
+              borderRadius: "12px",
+              fontSize: "12px",
+              boxShadow: "0 4px 16px rgba(0,0,0,0.08)",
+            }}
+            formatter={(value: number, name: string) => [`${CURRENCY}${value.toLocaleString("en-IN")}`, name]}
+            labelStyle={{ fontWeight: 600, color: "#1e293b", marginBottom: 4 }}
+          />
+          {accountNames.map((name, i) => {
+            if (hidden.has(name)) return null;
+            const color = AREA_COLORS[i % AREA_COLORS.length];
+            return (
+              <Area
+                key={name}
+                type="monotone"
+                dataKey={name}
+                stroke={color}
+                strokeWidth={2}
+                fill={`url(#grad-${i})`}
+                dot={false}
+                activeDot={{ r: 4, strokeWidth: 0, fill: color }}
+              />
+            );
+          })}
+        </AreaChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+// ─── StatCard ─────────────────────────────────────────────────────────────────
+
+function StatCard({ label, value, color, description, trend }: {
+  label: string; value: string; color: string; description: string;
+  trend?: "up" | "down" | null;
 }) {
   return (
     <div className="glass-card rounded-2xl p-5 transition-all duration-200 hover:shadow-md hover:-translate-y-0.5">
       <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mb-3">{label}</p>
       <p className={`font-mono text-2xl font-semibold tabular ${color}`}>{value}</p>
       <div className="mt-2 flex items-center gap-1.5">
-        {change === null ? (
-          <Minus size={11} className="text-slate-300" />
-        ) : change >= 0 ? (
-          <TrendingUp size={11} className="text-green-500" />
-        ) : (
-          <TrendingDown size={11} className="text-rose-500" />
-        )}
+        {trend === "up"   && <TrendingUp   size={11} className="text-green-500" />}
+        {trend === "down" && <TrendingDown size={11} className="text-rose-500" />}
+        {(trend === null || trend === undefined) && <Minus size={11} className="text-slate-300" />}
         <p className="text-[11px] text-slate-400">{description}</p>
       </div>
     </div>
   );
 }
 
+// ─── Category chart ───────────────────────────────────────────────────────────
+
+function CategoryChart({ data }: { data: { name: string; value: number }[] }) {
+  if (!data.length) {
+    return (
+      <div className="flex h-48 items-center justify-center text-xs text-slate-400">
+        No expense data this month
+      </div>
+    );
+  }
+
+  const total = data.reduce((s, d) => s + d.value, 0);
+
+  return (
+    <ResponsiveContainer width="100%" height={220}>
+      <PieChart>
+        <Pie
+          data={data}
+          cx="50%"
+          cy="50%"
+          innerRadius={55}
+          outerRadius={85}
+          paddingAngle={3}
+          dataKey="value"
+        >
+          {data.map((_, i) => (
+            <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} stroke="none" />
+          ))}
+        </Pie>
+        <Tooltip
+          formatter={(value: number) => [`${CURRENCY}${fmt(value)}`, ""]}
+          contentStyle={{
+            background: "rgba(255,255,255,0.95)",
+            border: "1px solid rgba(0,0,0,0.06)",
+            borderRadius: "12px",
+            fontSize: "12px",
+          }}
+        />
+        <Legend
+          formatter={(value) => {
+            const item = data.find((d) => d.name === value);
+            const pct  = item ? Math.round((item.value / total) * 100) : 0;
+            return (
+              <span className="text-[11px] text-slate-600">
+                {CATEGORY_META[value]?.emoji ?? "•"} {value} ({pct}%)
+              </span>
+            );
+          }}
+          iconType="circle"
+          iconSize={8}
+        />
+      </PieChart>
+    </ResponsiveContainer>
+  );
+}
+
+// ─── Recent transaction row ───────────────────────────────────────────────────
+
+function TxnRow({ txn }: { txn: DashboardData["recentTransactions"][0] }) {
+  const isIncome  = txn.type === "income";
+  const emoji     = CATEGORY_META[txn.category]?.emoji ?? "📦";
+  const dateStr   = new Date(txn.date).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+
+  return (
+    <div className="flex items-center gap-3 py-2.5 border-b border-black/[0.04] last:border-0">
+      <div className="w-8 h-8 rounded-xl bg-slate-50 border border-black/[0.06] flex items-center justify-center text-base shrink-0">
+        {emoji}
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-[13px] font-medium text-slate-700 truncate">{txn.description}</p>
+        <p className="text-[10px] text-slate-400">{txn.category} · {dateStr}</p>
+      </div>
+      <p className={cn("text-sm font-mono font-semibold tabular shrink-0",
+        isIncome ? "text-emerald-600" : "text-rose-500"
+      )}>
+        {isIncome ? "+" : "−"}{CURRENCY}{fmt(txn.amount)}
+      </p>
+    </div>
+  );
+}
+
+// ─── Dashboard ────────────────────────────────────────────────────────────────
+
 export default function Dashboard() {
+  const [data,               setData]               = useState<DashboardData | null>(null);
   const [showTxnModal,       setShowTxnModal]       = useState(false);
   const [showRecurringModal, setShowRecurringModal] = useState(false);
 
-  const handleSave = async (data: NewTransactionData) => {
+  const loadDashboard = useCallback(() => {
+    fetch("/api/dashboard")
+      .then((r) => r.json())
+      .then((d: DashboardData) => setData(d))
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => { loadDashboard(); }, [loadDashboard]);
+
+  // Refresh when a transaction is added (from chat or modal)
+  useEffect(() => {
+    window.addEventListener("owl:transaction:created", loadDashboard);
+    return () => window.removeEventListener("owl:transaction:created", loadDashboard);
+  }, [loadDashboard]);
+
+  const handleSave = async (d: NewTransactionData) => {
     await fetch("/api/transactions", {
-      method:  "POST",
-      headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify(data),
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(d),
     });
     setShowTxnModal(false);
+    loadDashboard();
+    window.dispatchEvent(new CustomEvent("owl:transaction:created"));
   };
+
+  const income      = data?.income      ?? 0;
+  const expenses    = data?.expenses    ?? 0;
+  const netWorth    = data?.netWorth    ?? 0;
+  const savingsRate = data?.savingsRate ?? null;
+
+  const stats = [
+    {
+      label: "Net Worth",
+      value: `${CURRENCY}${fmt(netWorth)}`,
+      color: "text-slate-800",
+      description: "account balances",
+      trend: null as "up" | "down" | null,
+    },
+    {
+      label: "Income",
+      value: `${CURRENCY}${fmt(income)}`,
+      color: "text-emerald-600",
+      description: "this month",
+      trend: null as "up" | "down" | null,
+    },
+    {
+      label: "Expenses",
+      value: `${CURRENCY}${fmt(expenses)}`,
+      color: "text-rose-500",
+      description: "this month",
+      trend: null as "up" | "down" | null,
+    },
+    {
+      label: "Savings Rate",
+      value: savingsRate !== null ? `${savingsRate}%` : "—",
+      color: savingsRate !== null && savingsRate >= 20 ? "text-emerald-600" : "text-blue-500",
+      description: "this month",
+      trend: null as "up" | "down" | null,
+    },
+  ];
 
   return (
     <div className="flex flex-col gap-8 p-8 w-full">
@@ -95,39 +386,56 @@ export default function Dashboard() {
         {stats.map((s) => <StatCard key={s.label} {...s} />)}
       </div>
 
-      {/* Tip */}
-      <div className="glass-card rounded-2xl px-5 py-4 flex items-center justify-between">
-        <div>
-          <p className="text-xs text-slate-400 mb-1">Tip</p>
-          <p className="text-sm text-slate-600">
-            Try asking Owl:{" "}
-            <span className="font-medium text-slate-800">&ldquo;Add ₹200 Swiggy spend today&rdquo;</span>
-            {" "}or{" "}
-            <span className="font-medium text-slate-800">&ldquo;How are my spends this month?&rdquo;</span>
+      {/* Chart + Recent */}
+      <div className="grid grid-cols-5 gap-6">
+        {/* Category pie */}
+        <div className="col-span-2 glass-card rounded-2xl p-5">
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-4">
+            Expenses by category
           </p>
+          <CategoryChart data={data?.categoryBreakdown ?? []} />
         </div>
-        <ArrowRight size={16} className="text-slate-300 shrink-0 ml-4" />
+
+        {/* Recent transactions */}
+        <div className="col-span-3 glass-card rounded-2xl p-5">
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+              Recent Transactions
+            </p>
+            <Link href="/transactions" className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-700 transition-colors">
+              View all <ArrowRight size={11} />
+            </Link>
+          </div>
+          {!data || data.recentTransactions.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <p className="text-3xl mb-3">🦉</p>
+              <p className="text-sm font-medium text-slate-600">No transactions yet</p>
+              <p className="text-xs text-slate-400 mt-1">Start tracking to see them here</p>
+              <button
+                onClick={() => setShowTxnModal(true)}
+                className="mt-4 text-xs text-blue-500 hover:underline flex items-center gap-1"
+              >
+                Add first transaction <ArrowRight size={11} />
+              </button>
+            </div>
+          ) : (
+            <div>
+              {data.recentTransactions.map((t) => <TxnRow key={t._id} txn={t} />)}
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Recent Transactions */}
-      <div>
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-slate-700">Recent Transactions</h2>
-          <Link href="/transactions" className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-700 transition-colors">
-            View all <ArrowRight size={11} />
-          </Link>
-        </div>
-        <div className="glass-card rounded-2xl py-14 flex flex-col items-center justify-center text-center">
-          <p className="text-3xl mb-3">🦉</p>
-          <p className="text-sm font-medium text-slate-600">No transactions yet</p>
-          <p className="text-xs text-slate-400 mt-1">Start tracking to see them here</p>
-          <button
-            onClick={() => setShowTxnModal(true)}
-            className="mt-4 text-xs text-blue-500 hover:underline flex items-center gap-1"
-          >
-            Add first transaction <ArrowRight size={11} />
-          </button>
-        </div>
+      {/* Account expense area chart */}
+      <div className="glass-card rounded-2xl p-5">
+        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-4">
+          Expenses by account —{" "}
+          {new Date().toLocaleDateString("en-IN", { month: "long" })} MTD
+        </p>
+        <AccountExpenseChart
+          series={data?.accountExpenseSeries ?? []}
+          accountNames={data?.accountNames ?? []}
+        />
       </div>
 
       {showTxnModal && (

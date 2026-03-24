@@ -2,13 +2,15 @@ import { NextRequest } from "next/server";
 import { openrouter, MICROBRAIN } from "@/services/openrouter";
 import { classifyIntent } from "@/services/chatService";
 import { actionConsumer } from "@/services/ActionConsumer";
+import { listBucketsForAI } from "@/services/savingsService";
 
 // ─── NDJSON streaming protocol ────────────────────────────────────────────────
 //
-//  { t: "action",          label, intent }          ← action resolved
-//  { t: "new_transaction", data: NewTransactionData }← prefills modal
-//  { t: "token",           v: string }              ← LLM stream
-//  { t: "error",           msg: string }            ← failure
+//  { t: "action",          label, intent }                          ← action resolved
+//  { t: "new_transaction", data: NewTransactionData }               ← prefills modal
+//  { t: "bucket_op_done",  bucketName, amount, direction, newBalance } ← bucket updated
+//  { t: "token",           v: string }                              ← LLM stream
+//  { t: "error",           msg: string }                            ← failure
 //
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -39,8 +41,9 @@ export async function POST(req: NextRequest) {
           `FY: ${now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1}-${String(now.getMonth() >= 3 ? now.getFullYear() + 1 : now.getFullYear()).slice(2)}`,
         ].join(" | ");
 
-        // ── 2. Classify ────────────────────────────────────────────────────
-        const intent = await classifyIntent(message, dateContext);
+        // ── 2. Classify (with bucket context) ──────────────────────────────
+        const bucketContext = await listBucketsForAI().catch(() => "");
+        const intent = await classifyIntent(message, dateContext, bucketContext || undefined);
 
         // ── 3. ActionConsumer ──────────────────────────────────────────────
         const actionResult = await actionConsumer.consume(intent);
@@ -53,6 +56,12 @@ export async function POST(req: NextRequest) {
           if (actionResult.newTransaction) {
             controller.enqueue(
               emit({ t: "new_transaction", data: actionResult.newTransaction })
+            );
+          }
+          // Notify client that bucket was updated
+          if (actionResult.bucketOpDone) {
+            controller.enqueue(
+              emit({ t: "bucket_op_done", ...actionResult.bucketOpDone })
             );
           }
         }
