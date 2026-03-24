@@ -29,6 +29,9 @@ export async function GET(req: NextRequest) {
   const type = searchParams.get("type");
   if (type) query.type = type;
 
+  const accountId = searchParams.get("accountId");
+  if (accountId) query.accountId = accountId;
+
   const txns = await Transaction.find(query)
     .sort({ date: -1 })
     .populate("accountId", "name bank type lastFour isCredit color")

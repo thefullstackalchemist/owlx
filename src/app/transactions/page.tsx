@@ -61,8 +61,9 @@ export default function TransactionsPage() {
       params.set("period", filters.preset);
     }
 
-    if (filters.type)     params.set("type",     filters.type);
-    if (filters.category) params.set("category", filters.category);
+    if (filters.type)      params.set("type",      filters.type);
+    if (filters.category)  params.set("category",  filters.category);
+    if (filters.accountId) params.set("accountId", filters.accountId);
 
     const res  = await fetch(`/api/transactions?${params}`);
     const data = await res.json() as Transaction[];

@@ -12,20 +12,22 @@ export interface IRecurringTransaction extends Document {
   frequency:   Frequency;
   nextDue:     Date;
   active:      boolean;
+  accountId:   mongoose.Types.ObjectId;
   createdAt:   Date;
   updatedAt:   Date;
 }
 
 const RecurringSchema = new Schema<IRecurringTransaction>(
   {
-    amount:      { type: Number,  required: true, min: 0 },
-    type:        { type: String,  required: true, enum: ["income", "expense", "transfer"] },
-    category:    { type: String,  required: true },
-    description: { type: String,  required: true },
+    amount:      { type: Number,                        required: true, min: 0 },
+    type:        { type: String,                        required: true, enum: ["income", "expense", "transfer"] },
+    category:    { type: String,                        required: true },
+    description: { type: String,                        required: true },
     platform:    { type: String },
-    frequency:   { type: String,  required: true, enum: ["daily", "weekly", "monthly", "yearly"] },
-    nextDue:     { type: Date,    required: true },
-    active:      { type: Boolean, default: true },
+    frequency:   { type: String,                        required: true, enum: ["daily", "weekly", "monthly", "yearly"] },
+    nextDue:     { type: Date,                          required: true },
+    active:      { type: Boolean,                       default: true },
+    accountId:   { type: Schema.Types.ObjectId, ref: "Account", required: true },
   },
   { timestamps: true }
 );

@@ -1,9 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { CalendarDays, ChevronDown, X } from "lucide-react";
 import { cn } from "@/utils/cn";
 import { TRANSACTION_CATEGORIES, CATEGORY_META } from "@/constants";
+
+interface Account { _id: string; name: string; bank: string; color: string; }
 
 export interface FilterState {
   mode:      "preset" | "custom";
@@ -12,6 +14,7 @@ export interface FilterState {
   dateTo:    string;
   type:      string;
   category:  string;
+  accountId: string;
 }
 
 interface Props {
@@ -29,11 +32,19 @@ const PRESETS = [
 ];
 
 export function defaultFilters(): FilterState {
-  return { mode: "preset", preset: "this_month", dateFrom: "", dateTo: "", type: "", category: "" };
+  return { mode: "preset", preset: "this_month", dateFrom: "", dateTo: "", type: "", category: "", accountId: "" };
 }
 
 export default function TransactionFilters({ value, onChange }: Props) {
   const [showCustom, setShowCustom] = useState(value.mode === "custom");
+  const [accounts,   setAccounts]   = useState<Account[]>([]);
+
+  useEffect(() => {
+    fetch("/api/accounts")
+      .then((r) => r.json())
+      .then((d: Account[]) => setAccounts(d))
+      .catch(() => {});
+  }, []);
 
   const setPreset = (preset: string) => {
     setShowCustom(false);
@@ -134,7 +145,7 @@ export default function TransactionFilters({ value, onChange }: Props) {
         </div>
       )}
 
-      {/* Row 3: type + category */}
+      {/* Row 3: type + category + account */}
       <div className="flex items-center gap-2 flex-wrap">
         <select
           value={value.category}
@@ -166,6 +177,19 @@ export default function TransactionFilters({ value, onChange }: Props) {
             </button>
           ))}
         </div>
+
+        {accounts.length > 0 && (
+          <select
+            value={value.accountId}
+            onChange={(e) => onChange({ ...value, accountId: e.target.value })}
+            className="rounded-lg border border-black/[0.08] bg-white/80 px-3 py-1.5 text-xs text-slate-600 outline-none focus:border-blue-300 transition-colors"
+          >
+            <option value="">All accounts</option>
+            {accounts.map((a) => (
+              <option key={a._id} value={a._id}>{a.name} · {a.bank}</option>
+            ))}
+          </select>
+        )}
       </div>
     </div>
   );

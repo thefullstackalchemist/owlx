@@ -1,10 +1,20 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X } from "lucide-react";
+import { X, CreditCard, Wallet } from "lucide-react";
 import { cn } from "@/utils/cn";
 import { TRANSACTION_CATEGORIES, CATEGORY_META } from "@/constants";
 import type { Frequency } from "@/models/RecurringTransaction";
+
+interface Account {
+  _id:      string;
+  name:     string;
+  bank:     string;
+  type:     string;
+  lastFour?: string;
+  isCredit: boolean;
+  color:    string;
+}
 
 interface Props {
   onClose: () => void;
@@ -33,6 +43,8 @@ export default function NewRecurringModal({ onClose, onSave }: Props) {
   const [platform,    setPlatform]    = useState("");
   const [frequency,   setFrequency]   = useState<Frequency>("monthly");
   const [nextDue,     setNextDue]     = useState(localDateTimeDefault);
+  const [accountId,   setAccountId]   = useState("");
+  const [accounts,    setAccounts]    = useState<Account[]>([]);
   const [saving,      setSaving]      = useState(false);
   const [error,       setError]       = useState("");
 
@@ -41,6 +53,15 @@ export default function NewRecurringModal({ onClose, onSave }: Props) {
     if (meta) setType(meta.defaultType);
   }, [category]);
 
+  useEffect(() => {
+    fetch("/api/accounts")
+      .then((r) => r.json())
+      .then((d: Account[]) => setAccounts(d))
+      .catch(() => {});
+  }, []);
+
+  const selectedAccount = accounts.find((a) => a._id === accountId) ?? null;
+
   const handleSave = async () => {
     if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
       setError("Enter a valid amount");
@@ -48,6 +69,10 @@ export default function NewRecurringModal({ onClose, onSave }: Props) {
     }
     if (!description.trim()) {
       setError("Description is required");
+      return;
+    }
+    if (!accountId) {
+      setError("Select an account or card");
       return;
     }
     setSaving(true);
@@ -63,7 +88,8 @@ export default function NewRecurringModal({ onClose, onSave }: Props) {
           description: description.trim(),
           platform:    platform.trim() || undefined,
           frequency,
-          nextDue: new Date(nextDue).toISOString(),
+          nextDue:    new Date(nextDue).toISOString(),
+          accountId,
         }),
       });
       if (!res.ok) throw new Error("Failed");
@@ -192,6 +218,43 @@ export default function NewRecurringModal({ onClose, onSave }: Props) {
               placeholder="e.g. Netflix, Spotify"
               className="w-full rounded-xl border border-black/[0.08] bg-white/80 px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-blue-300 transition-colors placeholder-slate-300"
             />
+          </div>
+
+          {/* Account — mandatory */}
+          <div>
+            <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-1.5">
+              Account / Card <span className="text-rose-400">*</span>
+            </label>
+            {accounts.length === 0 ? (
+              <p className="text-xs text-amber-500 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2">
+                No accounts found — add one in the <strong>Accounts</strong> page first.
+              </p>
+            ) : (
+              <div className="flex flex-wrap gap-1.5">
+                {accounts.map((acc) => (
+                  <button
+                    key={acc._id}
+                    onClick={() => setAccountId(acc._id)}
+                    className={cn(
+                      "flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs transition-all",
+                      accountId === acc._id
+                        ? "font-medium text-white shadow-sm"
+                        : "border-black/[0.08] text-slate-600 hover:bg-black/[0.04]"
+                    )}
+                    style={accountId === acc._id ? { backgroundColor: acc.color, borderColor: acc.color } : {}}
+                  >
+                    {acc.isCredit ? <CreditCard size={10} /> : <Wallet size={10} />}
+                    {acc.name}
+                    {acc.lastFour && <span className="opacity-70">·· {acc.lastFour}</span>}
+                  </button>
+                ))}
+              </div>
+            )}
+            {selectedAccount?.isCredit && (
+              <p className="text-[10px] text-rose-500 mt-1.5">
+                💳 Credit card — repayment will be tracked per occurrence
+              </p>
+            )}
           </div>
 
           {error && <p className="text-xs text-rose-500">{error}</p>}
