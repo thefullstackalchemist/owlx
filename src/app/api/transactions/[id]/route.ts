@@ -5,6 +5,31 @@ import { Account } from "@/models/Account";
 import { Card } from "@/models/Card";
 import { Wallet } from "@/models/Wallet";
 
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+  await connectDB();
+
+  const body = await req.json();
+  const allowed = ["description", "category", "type", "amount", "date", "platform", "needsRepayment", "needsReview"];
+  const update: Record<string, unknown> = {};
+
+  for (const key of allowed) {
+    if (key in body) update[key] = body[key];
+  }
+
+  if (Object.keys(update).length === 0) {
+    return NextResponse.json({ error: "No valid fields to update" }, { status: 400 });
+  }
+
+  const txn = await Transaction.findByIdAndUpdate(id, { $set: update }, { new: true }).lean();
+  if (!txn) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  return NextResponse.json(txn);
+}
+
 export async function DELETE(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }

@@ -233,6 +233,7 @@ export default function TransactionsPage() {
           transaction={detailTxn}
           onClose={() => setDetailTxn(null)}
           onDelete={handleDelete}
+          onUpdate={() => { setDetailTxn(null); fetchTransactions(); }}
         />
       )}
     </div>
