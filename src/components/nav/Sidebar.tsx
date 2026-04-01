@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter, usePathname } from "next/navigation";
 import { LayoutDashboard, ArrowLeftRight, BarChart3, Settings, UserCircle, LogOut, Landmark, PiggyBank } from "lucide-react";
 import { cn } from "@/utils/cn";
@@ -28,7 +29,7 @@ export default function Sidebar() {
       {/* Logo */}
       <div className="px-5 py-5">
         <div className="flex items-center gap-2.5">
-          <span className="text-xl">🦉</span>
+          <Image src="/fauget.png" alt="Fauget logo" width={32} height={32} className="rounded-lg" />
           <div>
             <p className="text-[11px] font-bold tracking-[0.18em] text-blue-500 uppercase">OWL</p>
             <p className="text-[9px] text-slate-400 leading-tight tracking-wide">Wealth Ledger</p>

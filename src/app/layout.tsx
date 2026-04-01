@@ -9,6 +9,7 @@ const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"]
 export const metadata: Metadata = {
   title: "Owl — Outstanding Wealth Ledger",
   description: "Your personal finance command center",
+  icons: { icon: "/fauget.png" },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

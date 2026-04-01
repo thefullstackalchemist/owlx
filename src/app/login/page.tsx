@@ -3,6 +3,7 @@
 import { useState, useEffect, KeyboardEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff, ArrowRight } from "lucide-react";
+import Image from "next/image";
 
 type Mode = "login" | "setup";
 
@@ -78,7 +79,7 @@ export default function LoginPage() {
               boxShadow:    "0 0 32px rgba(139,92,246,0.30), inset 0 1px 0 rgba(255,255,255,0.15)",
             }}
           >
-            <span className="text-[38px] leading-none select-none">🦉</span>
+            <Image src="/fauget.png" alt="Fauget logo" width={52} height={52} className="rounded-2xl" />
           </div>
 
           <div className="text-center">
