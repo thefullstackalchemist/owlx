@@ -158,7 +158,7 @@ function AccountExpenseChart({
               fontSize: "12px",
               boxShadow: "0 4px 16px rgba(0,0,0,0.08)",
             }}
-            formatter={(value: number, name: string) => [`${CURRENCY}${value.toLocaleString("en-IN")}`, name]}
+            formatter={(value, name) => [`${CURRENCY}${Number(value).toLocaleString("en-IN")}`, String(name ?? "")]}
             labelStyle={{ fontWeight: 600, color: "#1e293b", marginBottom: 4 }}
           />
           {accountNames.map((name, i) => {
@@ -233,7 +233,7 @@ function CategoryChart({ data }: { data: { name: string; value: number }[] }) {
           ))}
         </Pie>
         <Tooltip
-          formatter={(value: number) => [`${CURRENCY}${fmt(value)}`, ""]}
+          formatter={(value) => [`${CURRENCY}${fmt(Number(value))}`, ""]}
           contentStyle={{
             background: "rgba(255,255,255,0.95)",
             border: "1px solid rgba(0,0,0,0.06)",

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Plus, TrendingUp, TrendingDown, ArrowUpDown, CreditCard } from "lucide-react";
+import { Plus, TrendingUp, TrendingDown, ArrowUpDown, CreditCard, AlertCircle } from "lucide-react";
 import { cn } from "@/utils/cn";
 import { CATEGORY_META } from "@/constants";
 import NewTransactionModal from "@/components/transactions/NewTransactionModal";
@@ -30,6 +30,7 @@ interface Transaction {
   platform?:      string;
   accountId?:     Account;
   needsRepayment: boolean;
+  needsReview:    boolean;
 }
 
 function formatDate(iso: string) {
@@ -159,6 +160,11 @@ export default function TransactionsPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
                       <p className="text-sm font-medium text-slate-700 truncate">{txn.description}</p>
+                      {txn.needsReview && (
+                        <span title="Uncategorized — needs review">
+                          <AlertCircle size={12} className="text-red-500 shrink-0" />
+                        </span>
+                      )}
                       {txn.needsRepayment && (
                         <CreditCard size={11} className="text-rose-400 shrink-0" />
                       )}

@@ -3,7 +3,7 @@ import mongoose, { Schema, Document } from "mongoose";
 export interface IChatMessage extends Document {
   role:      "user" | "assistant";
   content:   string;
-  source:    "web" | "telegram";
+  source:    "web" | "telegram" | "mobile";
   createdAt: Date;
 }
 
@@ -11,7 +11,7 @@ const ChatMessageSchema = new Schema<IChatMessage>(
   {
     role:    { type: String, required: true, enum: ["user", "assistant"] },
     content: { type: String, required: true },
-    source:  { type: String, default: "web", enum: ["web", "telegram"] },
+    source:  { type: String, default: "web", enum: ["web", "telegram", "mobile"] },
   },
   { timestamps: true }
 );

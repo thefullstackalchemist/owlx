@@ -36,6 +36,8 @@ export const TRANSACTION_CATEGORIES = [
   "Savings",
   "Transfer",
   "Other",
+  // Auto-imported (needs review)
+  "Uncategorized",
 ] as const;
 
 export type TransactionCategory = (typeof TRANSACTION_CATEGORIES)[number];
@@ -62,4 +64,5 @@ export const CATEGORY_META: Record<string, { emoji: string; defaultType: "income
   "Savings":            { emoji: "🪣", defaultType: "income"  },
   "Transfer":           { emoji: "↔️", defaultType: "transfer"},
   "Other":              { emoji: "📦", defaultType: "expense" },
+  "Uncategorized":      { emoji: "❓", defaultType: "expense" },
 };

@@ -12,6 +12,8 @@ export interface ITransaction extends Document {
   accountId?:     mongoose.Types.ObjectId;
   accountRef:     "Account" | "Card" | "Wallet";
   needsRepayment: boolean;
+  needsReview:    boolean;
+  smsSource?:     string;
   createdAt:      Date;
   updatedAt:      Date;
 }
@@ -28,6 +30,8 @@ const TransactionSchema = new Schema<ITransaction>(
     accountId:      { type: Schema.Types.ObjectId, refPath: "accountRef" },
     accountRef:     { type: String, enum: ["Account", "Card", "Wallet"], default: "Account" },
     needsRepayment: { type: Boolean, default: false },
+    needsReview:    { type: Boolean, default: false },
+    smsSource:      { type: String },
   },
   { timestamps: true }
 );

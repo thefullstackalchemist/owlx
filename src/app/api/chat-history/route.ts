@@ -17,7 +17,7 @@ export async function GET() {
 /** POST — save a message */
 export async function POST(req: NextRequest) {
   await connectDB();
-  const { role, content } = await req.json() as { role: "user" | "assistant"; content: string };
-  const msg = await ChatMessage.create({ role, content });
+  const { role, content, source } = await req.json() as { role: "user" | "assistant"; content: string; source?: string };
+  const msg = await ChatMessage.create({ role, content, source: source ?? "web" });
   return NextResponse.json(msg, { status: 201 });
 }
