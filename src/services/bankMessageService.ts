@@ -1,7 +1,6 @@
 import { connectDB } from "@/lib/mongodb";
 import { Transaction } from "@/models/Transaction";
-import { ollama } from "@/services/ollama";
-import { ANALYSIS_MODEL } from "@/constants";
+import { openrouter } from "@/services/openrouter";
 
 export interface BankSmsPayload {
   sender:     string;
@@ -69,7 +68,7 @@ async function extractWithRetry(payload: BankSmsPayload): Promise<ExtractedTrans
 
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
-      const raw       = await ollama.chat([{ role: "user", content: prompt }], ANALYSIS_MODEL);
+      const raw       = await openrouter.analyze(prompt);
       const extracted = parseExtracted(raw);
 
       if (extracted) return extracted;
